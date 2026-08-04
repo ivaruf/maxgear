@@ -21,6 +21,25 @@ python3 -m http.server 8000
 
 or `npx serve`, or any equivalent. No install, no build, no backend.
 
+## Install as an app / GitHub Pages
+
+The game is a PWA: a service worker (`sw.js`) precaches everything for offline play, and
+`manifest.webmanifest` + generated icons make it installable ("Add to Home Screen" /
+install icon in the address bar) once it's served over HTTPS.
+
+**Deploy to GitHub Pages:** push the repo, then Settings → Pages → deploy from branch
+(root). All paths are relative, so it works from the `https://<user>.github.io/<repo>/`
+subpath as-is (`.nojekyll` is included).
+
+**Shipping an update:** bump `VERSION` at the top of `sw.js` (e.g. `v1.0.0` → `v1.0.1`)
+in the same commit as your changes. On the next launch the new version is precached in
+the background, old caches are deleted, and the page auto-reloads — only from the title
+screen, never mid-run. (Without a bump, returning visitors keep playing the cached build.)
+
+**Local dev note:** once the service worker has registered in your browser, it serves the
+cached build. While developing, either bump `VERSION`, or use DevTools → Application →
+Service Workers → "Update on reload" / "Bypass for network".
+
 ## Controls
 
 | Action | Desktop | Mobile |
@@ -56,7 +75,9 @@ one canonical coordinate system. See `DESIGN.md` for the full internal spec.
 
 ```
 index.html  css/style.css        shell + DOM HUD/screens
-js/main.js                       bootstrap, state machine, game loop
+sw.js  manifest.webmanifest      PWA: offline precache + installability
+icons/                           generated app icons
+js/main.js                       bootstrap, state machine, game loop, SW registration
 js/config.js js/utils.js         tuning constants, helpers
 js/input.js                      keyboard + pointer-drag input
 js/render.js                     projection, camera, background/road, frame orchestration
@@ -107,6 +128,9 @@ token — while shielded you're a wrecking ball: ramming enemies kills them for 
 - Automated Playwright suite in real Chrome: start → steer (keys + drag) → full run → boss →
   victory → restart → defeat → restart → resize → mobile viewport → pause/resume,
   asserting **zero console errors** end-to-end.
+- PWA suite: service-worker registration, complete precache, **offline reload + playthrough**,
+  and a live update simulation (VERSION bump → new cache installed on launch → old cache
+  deleted → auto-reload lands healthy on the title screen).
 - Autopilot balance harness playing complete unassisted runs (greedy and cautious gate
   policies): victory at ~3:20–3:35 with real HP pressure; boss fight ~25–35s.
 - Maxed-build stress test (6 shots × 9 shooters × 14 volleys/s ≈ 360 live projectiles + horde):

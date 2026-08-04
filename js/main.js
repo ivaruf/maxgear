@@ -200,4 +200,21 @@ window.addEventListener('resize', () => resizeView(view));
 // Debug/test hooks (used by automated Playwright tests)
 window.MG = { game, newRun, setState, view };
 
+// ---- PWA: install + update-on-launch -------------------------------------------
+// sw.js precaches everything under a versioned cache. updateViaCache:'none' +
+// reg.update() make a bumped sw.js VERSION get picked up at launch; when the
+// new worker takes control we reload to run the fresh version — but only from
+// the title screen, never in the middle of a run.
+if ('serviceWorker' in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then((reg) => reg.update())
+      .catch(() => { /* offline or unsupported: the game runs fine without it */ });
+  });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (hadController && game.state === 'title') location.reload();
+  });
+}
+
 requestAnimationFrame(frame);
