@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>MAXGEAR — Gate Rush</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="game"></canvas>
+
+  <!-- HUD (visible during play) -->
+  <div id="hud" class="hidden">
+    <div id="hud-top">
+      <div id="hp-wrap"><div id="hp-bar"></div><span id="hp-text">100</span></div>
+      <div id="progress-wrap"><div id="progress-bar"></div><div id="progress-marker">▲</div></div>
+      <div id="score-wrap"><span id="score">0</span><span class="hud-label">SCORE</span></div>
+    </div>
+    <div id="boss-wrap" class="hidden">
+      <span id="boss-name">WARLORD</span>
+      <div id="boss-bar-outer"><div id="boss-bar"></div></div>
+    </div>
+    <div id="upgrade-toast" class="hidden"></div>
+    <div id="stats-strip"></div>
+    <button id="mute-btn" title="Mute (M)">🔊</button>
+    <button id="pause-btn" title="Pause (Esc)">⏸</button>
+  </div>
+
+  <!-- Screens -->
+  <div id="screen-title" class="screen">
+    <h1>MAX<span class="accent">GEAR</span></h1>
+    <p class="tagline">The ad was fake. This one is real.</p>
+    <div class="instructions">
+      <p><b>A / D</b> or <b>← →</b> or <b>drag</b> to steer</p>
+      <p>You fire automatically — drive through <span class="good">good gates</span>, dodge <span class="bad">bad ones</span></p>
+      <p>Shoot <span class="charge">charge gates</span> to power them up before you pass</p>
+    </div>
+    <button class="big-btn" id="btn-start">▶ &nbsp;START RUN</button>
+    <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
+  </div>
+
+  <div id="screen-pause" class="screen hidden">
+    <h2>PAUSED</h2>
+    <button class="big-btn" id="btn-resume">RESUME</button>
+    <button class="small-btn" id="btn-quit">QUIT TO TITLE</button>
+  </div>
+
+  <div id="screen-defeat" class="screen hidden">
+    <h2 class="bad">WRECKED</h2>
+    <p id="defeat-stats"></p>
+    <button class="big-btn" id="btn-retry">↻ &nbsp;TRY AGAIN</button>
+    <p class="hint">R to restart</p>
+  </div>
+
+  <div id="screen-victory" class="screen hidden">
+    <h2 class="good">WARLORD DOWN</h2>
+    <p id="victory-stats"></p>
+    <button class="big-btn" id="btn-again">↻ &nbsp;RUN IT BACK</button>
+    <p class="hint">R to restart</p>
+  </div>
+</div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
