@@ -43,12 +43,7 @@ const game = {
   timeScale: 1,       // debug/testing fast-forward
 };
 
-function newRun() {
-  game.time = 0;
-  game.runSpeed = BASE_RUN_SPEED;
-  game.score = 0;
-  game.kills = 0;
-  game.player = createPlayer();
+function clearWorld() {
   game.enemies.length = 0;
   game.projectiles.length = 0;
   game.enemyShots.length = 0;
@@ -58,16 +53,27 @@ function newRun() {
   game.boss = null;
   game.bossDefeated = false;
   game.pendingBossAt = null;
-  game.endTimer = 0;
+  game.projCursor = 0;
   game.lastUpgrade = null;
-  game.level = createLevel();
   fx.reset();
+}
+
+function newRun() {
+  game.time = 0;
+  game.runSpeed = BASE_RUN_SPEED;
+  game.score = 0;
+  game.kills = 0;
+  game.player = createPlayer();
+  game.endTimer = 0;
+  game.level = createLevel();
+  clearWorld();
   input.clear();
   setState('playing');
 }
 
 function setState(s) {
   game.state = s;
+  if (s === 'playing') input.clear(); // drops drag accumulated while paused
   ui.showScreen(s === 'playing' ? null : s === 'paused' ? 'pause' : s);
   if (s === 'victory') { ui.showEnd(game, true); audio.win(); }
   if (s === 'defeat') { ui.showEnd(game, false); audio.lose(); }
@@ -165,7 +171,9 @@ function frame(now) {
       remaining -= sub;
       if (game.state !== 'playing') break;
     }
-    ui.update(game);
+    // re-check: step() may have just ended the run, and ui.update would
+    // re-show the boss bar / re-enable boss music on the end screen
+    if (game.state === 'playing') ui.update(game);
   }
 
   updateCamera(view, game);
@@ -178,8 +186,11 @@ ui.init(game, {
   start: () => { if (game.state === 'title') { audio.unlock(); newRun(); } },
   restart: () => { audio.unlock(); newRun(); },
   resume: () => { if (game.state === 'paused') { setState('playing'); ui.showScreen(null); } },
-  quit: () => setState('title'),
-  pause: () => { if (game.state === 'playing') setState('paused'); },
+  quit: () => { clearWorld(); setState('title'); }, // no frozen run bleeding through the title
+  pause: () => {
+    if (game.state === 'playing') setState('paused');
+    else if (game.state === 'paused') { setState('playing'); ui.showScreen(null); }
+  },
   mute: () => ui.setMuted(audio.toggleMute()),
 });
 ui.showScreen('title');

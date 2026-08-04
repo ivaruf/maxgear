@@ -243,6 +243,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 /* ---- HUD buttons (>=40px touch targets) ---- */
 #mute-btn, #pause-btn {
   position: absolute;
+  z-index: 20; /* stays clickable above the pause overlay (.screen is z-index 10) */
   top: calc(var(--safe-t) + 38px);
   width: 40px; height: 40px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;

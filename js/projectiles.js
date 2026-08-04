@@ -10,10 +10,9 @@ export function fireVolley(game, x, z, stats) {
   const n = Math.round(stats.projectiles);
   const spread = (stats.spreadDeg * Math.PI) / 180;
   for (let i = 0; i < n; i++) {
-    if (game.projectiles.length >= LIMITS.projectiles) return;
     const angle = (i - (n - 1) / 2) * spread;
     const crit = Math.random() < stats.critChance;
-    game.projectiles.push({
+    const proj = {
       x, z,
       vx: Math.sin(angle) * PROJECTILE.speed,
       vz: Math.cos(angle) * PROJECTILE.speed,
@@ -26,7 +25,15 @@ export function fireVolley(game, x, z, stats) {
       life: PROJECTILE.life,
       hits: null,           // Set of enemies already pierced (lazy)
       dead: false,
-    });
+    };
+    // At the cap, recycle the oldest slot instead of refusing to fire —
+    // otherwise late squad members silently contribute nothing (QA MED-4)
+    if (game.projectiles.length >= LIMITS.projectiles) {
+      game.projCursor = (game.projCursor ?? 0) % LIMITS.projectiles;
+      game.projectiles[game.projCursor++] = proj;
+    } else {
+      game.projectiles.push(proj);
+    }
   }
   fx.muzzle(x, z + 24);
 }

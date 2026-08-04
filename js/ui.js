@@ -70,7 +70,7 @@ function buildChips(p) {
   if (s.pierce > 0) rows.push(['PIERCE', s.pierce, true]);
   if (s.ricochet > 0) rows.push(['RICOCHET', s.ricochet, true]);
   if (s.critChance > 0) rows.push(['CRIT', `${Math.round(s.critChance * 100)}%`, true]);
-  if (s.explosive > 0) rows.push(['EXPLOSIVE', `x${+s.explosive.toFixed(1)}`, true]);
+  if (s.explosive > 0) rows.push(['EXPLOSIVE', `LV${Math.round(s.explosive)}`, true]);
   if (s.magnet > 0) rows.push(['MAGNET', Math.round(s.magnet), true]);
   if (s.moveSpeed !== b.moveSpeed) rows.push(['SPEED', Math.round(s.moveSpeed), s.moveSpeed > b.moveSpeed]);
   if (s.spreadDeg !== b.spreadDeg) rows.push(['SPREAD', `${Math.round(s.spreadDeg)}°`, s.spreadDeg < b.spreadDeg]);
@@ -126,6 +126,7 @@ export const ui = {
       el.classList.toggle('hidden', name !== state);
     }
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
+    if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state !== null && state !== 'pause') {
       clearToasts();
       audio.setBossMode(false);

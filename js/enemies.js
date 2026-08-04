@@ -67,9 +67,9 @@ export const ENEMY_TYPES = {
     homeRate: 0.4, homeMax: 40,
   },
   boss: {
-    // hp is multiplied by game.level.hpScale at spawn like every other type;
-    // level.js caps that at 6x and it sits near ~5x at BOSS_AT, so the effective
-    // pool is ~16k. Balance either number — or pass { hpScale: 1 } from main.js.
+    // hp here is only the divisor baseline: main.js spawns the boss with an
+    // hpScale computed from the player's ACTUAL dps (clamped 4k..45k) so the
+    // fight lasts ~30s for any build; behaviors.boss adds a decay failsafe.
     hp: 3200, speed: 120, damage: 40, radius: 55, score: 1500,
     color: '#b23bc9', behavior: 'boss', dropChance: 0, isBoss: true, name: 'WARLORD',
     shotSpeed: 440, shotDamage: 12, shotColor: '#ff7ad9',
@@ -202,6 +202,8 @@ const behaviors = {
   // shooter: keeps its distance, strafes, fires telegraphed aimed shots
   shooter(e, dt, game) {
     const p = game.player;
+    // leftover shooters must not camp the boss arena firing off-pattern
+    if (game.boss) { behaviors.rush(e, dt, game); return; }
     holdAhead(e, dt, game, e.holdDist, Math.max(game.runSpeed * 0.9, 60));
     strafe(e, dt, e.def.strafeSpeed, 10);
 
@@ -211,7 +213,9 @@ const behaviors = {
       e.fireTimer = rand(e.def.fireEvery[0], e.def.fireEvery[1]);
       e.charge = 0;
       if (e.z > p.z + 120) {
-        shotFrom(game, e, p.x, p.z);
+        // lead the shot: the player advances at runSpeed while it flies
+        const flight = (e.z - p.z) / (e.def.shotSpeed + game.runSpeed);
+        shotFrom(game, e, p.x, p.z + game.runSpeed * flight * 0.85);
         fx.hitSpark(e.x, e.z - e.radius, e.def.shotColor);
       }
     }
@@ -302,6 +306,14 @@ const behaviors = {
     const ph = updateBossPhase(e, game);
     e.phaseFlash = Math.max(0, e.phaseFlash - dt);
     e.phaseInvuln = Math.max(0, (e.phaseInvuln || 0) - dt);
+
+    // Failsafe: HP is DPS-scaled at spawn, but a pathological build (all bad
+    // gates taken) could still stall out. After 75s the boss "overheats" and
+    // decays, so the arena can never become an unwinnable trap.
+    if (e.age > 75) {
+      e.hp -= e.maxHp * 0.0025 * (e.age - 75) * dt;
+      if (e.hp <= 0) { killEnemy(game, e, 'shot'); return; }
+    }
 
     // Always sit 500-700 ahead: the arena has runSpeed 0, so this is pure control.
     e.z += clamp((p.z + ph.holdZ - e.z) * 1.8, -240, 240) * dt;
@@ -541,12 +553,15 @@ export function killEnemy(game, e, cause = 'shot') {
   fx.textPop(e.x, e.z, `+${e.score}`, e.elite ? ELITE.color : '#ffd166');
   audio.enemyDie();
 
-  // splitter -> minis, spawned at the death site with slight x offsets
+  // splitter -> minis, spawned at the death site with slight x offsets.
+  // Never closer than 70 ahead of the player: a point-blank split would put
+  // minis inside the player's hitbox before any dodge is possible.
   if (e.def.splitInto) {
     const n = randInt(e.def.splitCount[0], e.def.splitCount[1]);
+    const zMin = game.player.z + 70;
     for (let i = 0; i < n; i++) {
       const ox = (i - (n - 1) / 2) * 26 + rand(-6, 6);
-      spawnEnemy(game, e.def.splitInto, e.x + ox, e.z + rand(-12, 12));
+      spawnEnemy(game, e.def.splitInto, e.x + ox, Math.max(e.z + rand(-12, 12), zMin));
     }
     fx.hitSpark(e.x, e.z, e.color);
   }
@@ -565,10 +580,21 @@ export function killEnemy(game, e, cause = 'shot') {
   }
 }
 
-// Enemy touched the player: hurt the player, enemy dies (no reward, no split)
+// Enemy touched the player. Three regimes:
+//  - shield token active (invuln > 0.55): the player is a wrecking ball — full
+//    kill with score/split, no damage taken
+//  - post-hit i-frames (0 < invuln <= 0.55): pass through, enemy SURVIVES, so
+//    ramming a whole wave can't be paid for with a single hit's damage
+//  - vulnerable: take damage, enemy dies without reward
 export function enemyContact(game, e) {
+  const p = game.player;
+  if (e.isBoss) {
+    if (p.invuln <= 0) { damagePlayer(game, e.damage); fx.shake(6, 0.2); }
+    return;
+  }
+  if (p.invuln > 0.55) { killEnemy(game, e, 'contact'); return; }
+  if (p.invuln > 0) return;
   damagePlayer(game, e.damage);
-  if (e.isBoss) { fx.shake(6, 0.2); return; }
   e.dead = true;
   fx.explosion(e.x, e.z, e.radius, e.color);
 }

@@ -98,6 +98,7 @@ export function damagePlayer(game, amount, ignoreInvuln = false) {
 
 export function healPlayer(game, amount) {
   const p = game.player;
+  if (p.dead) return; // a heal collected during the death beat must not revive the HUD
   p.hp = Math.min(p.maxHp, p.hp + amount);
   fx.textPop(p.x, p.z + 30, `+${Math.round(amount)}`, '#3ddc84');
 }

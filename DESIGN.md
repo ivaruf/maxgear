@@ -48,7 +48,7 @@ player+squad → projectiles → fx particles/floaters → screen flash. HUD is 
 
 ## Player stats (player.js — upgrades mutate ONLY these)
 ```js
-stats = { damage:10, fireInterval:0.34, projectiles:1, spreadDeg:7, pierce:0,
+stats = { damage:10, fireInterval:0.32, projectiles:1, spreadDeg:7, pierce:0,
           critChance:0, explosive:0, ricochet:0, squad:0, moveSpeed:360, magnet:0 }
 ```
 Caps live in `config.js` (`CAPS`) and are enforced in `clampStats()` — upgrades may exceed
@@ -76,9 +76,12 @@ Director spawns a segment when `player.z + SPAWN_AHEAD >= at`. Boss segment sets
 and arena mode; victory = boss dead. Progress = `player.z / bossAt`.
 
 ## FX / audio API (call sites already wired — implement, don't rename)
-`fx.hitSpark(x,z,color)`, `fx.explosion(x,z,radius,color)`, `fx.muzzle(x,z)`, `fx.textPop(x,z,text,color)`,
+`fx.hitSpark(x,z,color)`, `fx.explosion(x,z,radius,color)`, `fx.muzzle(x,z,dirX?,dirZ?)`, `fx.textPop(x,z,text,color)`,
+`fx.gateBurst(x,z,color)`, `fx.bossIntro(dur?)`,
 `fx.shake(mag,dur)`, `fx.flash(color,alpha,dur)`, `fx.update(dt)`, `fx.draw(ctx,view)` — world-space x/z.
-`audio.shoot/hit/explode/enemyDie/hurt/pickup/gateGood/gateBad/bossRoar/win/lose/click()`, `audio.toggleMute()`.
+`audio.shoot/hit/explode/enemyDie/hurt/pickup/gateGood/gateBad/gateCharge/bossRoar/win/lose/click()`,
+`audio.toggleMute()`, `audio.setBossMode(bool)`.
+Boss HP is DPS-scaled at spawn in main.js (~30s fight for any build) with an overheat-decay failsafe after 75s.
 
 ## Visual direction
 Dusk synthwave: dark asphalt road, neon cyan player, warm-colored enemies (red/orange/magenta),

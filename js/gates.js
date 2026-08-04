@@ -96,11 +96,13 @@ export const UPGRADES = {
     apply: (game, v) => { game.player.stats.ricochet += v; },
   },
   spread: {
+    // QA-measured: WIDER spread is always a DPS loss, so the "good" version
+    // tightens the volley (label matches the ui.js end-screen chip logic too)
     kind: 'good', base: 4,
-    label: (v) => `+${v}° SPREAD`,
+    label: () => 'TIGHTER SPREAD',
     apply: (game, v) => {
       const s = game.player.stats;
-      s.spreadDeg = clamp(s.spreadDeg + v, 0, SPREAD_MAX);
+      s.spreadDeg = clamp(s.spreadDeg - v, 2, SPREAD_MAX);
     },
   },
   moveSpeed: {
@@ -172,7 +174,9 @@ export const UPGRADES = {
 // [-202, -10] and [+10, +202]: full road coverage outward, 20u of dead centre.
 const SLOT_TWO_HALF_W = ROAD_HALF * 0.44;   // 88
 const SLOT_TWO_CENTER = ROAD_HALF * 0.53;   // +/-106
-const SLOT_ONE_HALF_W = ROAD_HALF * 0.55;   // 110, dodgeable around the edges
+const SLOT_ONE_HALF_W = ROAD_HALF * 0.85;   // 170: single gates (tutorial charge
+// gates) are near-unmissable — QA showed accidentally dodging them makes the
+// first-third difficulty spike unfair
 
 // Spawn a row of gate slots. defs: [{key, value?}] length 1-2.
 export function spawnGateRow(game, z, defs) {

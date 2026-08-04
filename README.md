@@ -87,8 +87,8 @@ js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative mu
 ## Upgrades (gates)
 
 **Good:** `+N DMG`*, `+N% FIRE RATE`*, `+1 SHOT`, `+N ALLY`*, `HEAL 30`, `+25 MAX HP`, `+1 PIERCE`,
-`EXPLOSIVE SHOTS`, `+15% CRIT`, `+1 RICOCHET`, `+4° SPREAD`, `+20% MOVE SPEED`, `+120 MAGNET`
-(* = chargeable: value grows while you shoot the gate).
+`EXPLOSIVE SHOTS`, `+15% CRIT`, `+1 RICOCHET`, `TIGHTER SPREAD`, `+20% MOVE SPEED`, `+120 MAGNET`
+(* = chargeable: value grows while you shoot the gate). Explosive, pierce, and ricochet stack.
 **Bad (dodge!):** `-20 HP`, `-25% DMG`, `-25% FIRE RATE`.
 **Trade-offs:** `+2 SHOTS / -25% DMG`, `+60% DMG / -25 MAX HP`, `EXPLOSIVE / -20 HP`.
 
@@ -99,7 +99,8 @@ so no combination destabilizes the game.
 
 Crates (loot piñatas) · wide barriers (shoot through or steer around, drop double loot) ·
 spike strips (indestructible — steer!) · mines (shoot them: the blast hurts *enemies*, only
-touching them hurts you; they chain). Pickups: heal cross, score gem, 3s shield token.
+touching them hurts you; they chain). Pickups: heal cross, score gem, and a 3-second shield
+token — while shielded you're a wrecking ball: ramming enemies kills them for full score.
 
 ## Testing performed
 

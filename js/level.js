@@ -160,6 +160,7 @@ const TIMELINE = [
     { type: 'splitter', count: 3, pattern: 'line', stagger: 70 },
     { type: 'runner', count: 4, pattern: 'pincer', stagger: 40 },
   ] },
+  { at: 16650, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'heal', x: 50 }] }, // breather between the two Zone-2B walls (QA death cluster)
   { at: 16950, type: 'wave', entries: [
     { type: 'tank', count: 1, pattern: 'center' },
     { type: 'shooter', count: 2, pattern: 'pincer', stagger: 0 },
@@ -330,6 +331,16 @@ export function createLevel() {
   };
 }
 
+// Zone names shown as the HUD act chip (ui.js reads game.level.actLabel)
+const ACTS = [
+  [0, 'ACT 1 · WARM-UP'],
+  [4000, 'ACT 2 · THE RAMP'],
+  [24850, 'ACT 3 · THE WALL'],
+  [27350, 'ACT 4 · DEEP RUN'],
+  [41800, 'ACT 5 · FINAL APPROACH'],
+  [44740, 'WARLORD'],
+];
+
 export function updateLevel(game, dt) {
   const lvl = game.level;
   const frontier = game.player.z + SPAWN_AHEAD;
@@ -337,6 +348,10 @@ export function updateLevel(game, dt) {
   // Global scaling with distance so late waves stay threatening while the
   // player's DPS multiplies. Capped so elites never become HP sponges.
   lvl.hpScale = Math.min(1 + game.player.z / HP_SCALE_K, HP_SCALE_MAX);
+
+  for (let i = ACTS.length - 1; i >= 0; i--) {
+    if (game.player.z >= ACTS[i][0]) { lvl.actLabel = ACTS[i][1]; break; }
+  }
 
   for (const seg of lvl.timeline) {
     if (seg.done) continue;

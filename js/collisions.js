@@ -26,7 +26,12 @@ function explode(game, p) {
   fx.explosion(p.x, p.z, radius, '#ff8a5a');
   audio.explode();
   const r2 = (radius + 20) * (radius + 20);
-  for (const e of game.enemies) {
+  // index loop over a snapshot length: killEnemy() can push split minis into
+  // the array mid-loop, and iterating them here would loop forever if a split
+  // child ever splits again
+  const n = game.enemies.length;
+  for (let i = 0; i < n; i++) {
+    const e = game.enemies[i];
     if (e.dead) continue;
     if (dist2(e.x, e.z, p.x, p.z) < r2) {
       // splash hits shields first so shielded enemies keep their identity vs explosive builds
@@ -70,12 +75,16 @@ export function resolveCollisions(game, dt) {
   for (const p of game.projectiles) {
     if (p.dead) continue;
 
-    for (const e of game.enemies) {
+    const nE = game.enemies.length; // snapshot: kills may push split minis
+    for (let i = 0; i < nE; i++) {
+      const e = game.enemies[i];
       if (e.dead) continue;
       if (!circleHit(p, e)) continue;
       if (p.hits && p.hits.has(e)) continue;
       hitEnemy(game, e, p);
-      if (p.explosive > 0) { explode(game, p); p.dead = true; break; }
+      // explosive detonates but no longer consumes the projectile outright:
+      // pierce and ricochet still apply, so the upgrades stack as advertised
+      if (p.explosive > 0) explode(game, p);
       if (e.dead && p.ricochet > 0 && tryRicochet(game, p, e)) break;
       if (p.pierce > 0) {
         p.pierce--;

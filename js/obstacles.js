@@ -86,7 +86,9 @@ function mineBlast(game, o) {
   fx.shake(4, 0.18);
   audio.explode();
   const r2 = b.radius * b.radius;
-  for (const e of game.enemies) {
+  const n = game.enemies.length; // snapshot: killEnemy can push split minis mid-loop
+  for (let i = 0; i < n; i++) {
+    const e = game.enemies[i];
     if (e.dead) continue;
     if (dist2(e.x, e.z, o.x, o.z) > r2) continue;
     e.hp -= b.damage;
