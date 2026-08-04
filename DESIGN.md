@@ -13,6 +13,8 @@ tutorial waves → escalating encounters with upgrade gates → boss → victory
 - All speeds are **world units per second**. All times are **seconds**. `dt` is clamped ≤ 0.05.
 - Screen projection is owned by `render.js`: `project(view, x, z) -> {sx, sy, f}` (f = perspective scale,
   1 near player, →0 at horizon). **Never project manually; always call `project`.**
+- **Drawing scale convention:** pixels-per-world-unit at an entity's depth is `k = f * view.unitScale`.
+  Size every drawn shape in WORLD units × k (e.g. an enemy of radius 17 draws at `17 * k * ~1.15`).
 - Camera: `view.camZ = player.z - CAM_BACK`. Entities are culled/despawned when `z < player.z - DESPAWN_BEHIND`.
 - Spawning happens at `z = player.z + SPAWN_AHEAD` (just beyond the visible horizon).
 

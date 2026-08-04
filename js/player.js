@@ -82,7 +82,8 @@ export function damagePlayer(game, amount, ignoreInvuln = false) {
   if (p.dead || game.state !== 'playing') return;
   if (p.invuln > 0 && !ignoreInvuln) return;
   p.hp -= amount;
-  p.invuln = PLAYER_DEFAULTS.invulnTime;
+  // never shorten an active shield-token window (ignoreInvuln hits would otherwise reset it)
+  p.invuln = Math.max(p.invuln, PLAYER_DEFAULTS.invulnTime);
   p.hurtFlash = 0.25;
   fx.shake(6, 0.25);
   fx.flash('#ff2233', 0.22, 0.25);
@@ -129,12 +130,25 @@ export function drawPlayer(ctx, view, game) {
   // Squad first (behind)
   for (const o of squadOffsets(p.stats.squad)) {
     const pos = project(view, clamp(p.x + o.dx, -ROAD_HALF, ROAD_HALF), p.z + o.dz);
-    drawShip(ctx, pos.sx, pos.sy, pos.f * view.unitScale * 0.85 * 0.14, '#2fb8d6', false);
+    drawShip(ctx, pos.sx, pos.sy, pos.f * view.unitScale * 0.8, '#2fb8d6', false);
   }
 
   const { sx, sy, f } = project(view, p.x, p.z);
-  const s = f * view.unitScale * 0.16;
-  if (p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0) ctx.globalAlpha = 0.35;
+  const s = f * view.unitScale; // pixels per world unit at player depth
+  if (p.invuln > 0.55) {
+    // long invulnerability (shield token) draws as a bubble, not a blink
+    ctx.save();
+    ctx.strokeStyle = 'rgba(53,224,255,0.8)';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#35e0ff';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(sx, sy - 4 * s, 26 * s, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  } else if (p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0) {
+    ctx.globalAlpha = 0.35;
+  }
   drawShip(ctx, sx, sy, s, p.hurtFlash > 0 ? '#ff8090' : '#35e0ff', true);
   ctx.globalAlpha = 1;
 }

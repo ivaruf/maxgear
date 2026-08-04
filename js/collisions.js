@@ -2,7 +2,7 @@
 // Circle vs circle in the x/z plane; gates are crossing bands.
 
 import { circleHit, dist2 } from './utils.js';
-import { killEnemy, enemyContact } from './enemies.js';
+import { killEnemy, enemyContact, interceptShot } from './enemies.js';
 import { damageObstacle, obstacleContact } from './obstacles.js';
 import { gateOnShot, applyGateSlot } from './gates.js';
 import { collectPickup } from './pickups.js';
@@ -11,6 +11,8 @@ import { fx } from './effects.js';
 import { audio } from './audio.js';
 
 function hitEnemy(game, e, p) {
+  // enemies.js may absorb/deflect the shot (e.g. shielded enemies)
+  if (interceptShot(game, e, p)) return;
   e.hp -= p.damage;
   e.flash = 0.07;
   fx.hitSpark(p.x, p.z, p.crit ? '#ffd166' : '#9df3ff');
@@ -27,6 +29,12 @@ function explode(game, p) {
   for (const e of game.enemies) {
     if (e.dead) continue;
     if (dist2(e.x, e.z, p.x, p.z) < r2) {
+      // splash hits shields first so shielded enemies keep their identity vs explosive builds
+      if (e.shieldHp > 0) {
+        e.shieldHp -= p.damage * 0.5;
+        e.shieldFlash = 0.1;
+        continue;
+      }
       e.hp -= p.damage * 0.5;
       e.flash = 0.07;
       if (e.hp <= 0) killEnemy(game, e, 'explosion');

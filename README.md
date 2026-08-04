@@ -1,0 +1,124 @@
+# MAXGEAR — Gate Rush
+
+*The ad was fake. This one is real.*
+
+A polished browser arcade lane-shooter inspired by the "misleading mobile game ad" genre —
+auto-fire down a neon highway, steer through upgrade gates, multiply your firepower,
+mow down escalating enemy waves, and take down the WARLORD at the end of a ~3-minute run.
+
+No frameworks, no build step, no assets, no network calls: vanilla JS ES modules + Canvas 2D,
+procedural graphics, and Web Audio synthesized sound.
+
+## Run it
+
+Any static file server works (ES modules can't load from `file://`):
+
+```bash
+cd maxgear
+python3 -m http.server 8000
+# then open http://localhost:8000
+```
+
+or `npx serve`, or any equivalent. No install, no build, no backend.
+
+## Controls
+
+| Action | Desktop | Mobile |
+|---|---|---|
+| Steer | `A`/`D` or `←`/`→`, or drag with the mouse | drag horizontally |
+| Shoot | automatic | automatic |
+| Start | `Space` / `Enter` / click / tap | tap |
+| Pause | `Esc` / `P` (or ⏸ button) | ⏸ button |
+| Restart | `R` (any time) | tap after win/lose |
+| Mute | `M` (or 🔊 button) | 🔊 button |
+
+**Gates:** green = good, red = bad (dodge them!), purple = trade-off (reads both effects).
+Gold **"SHOOT ME"** gates charge up as you shoot them — pump the number, then drive through.
+You can thread the small gap between a gate pair to take neither.
+
+## Architecture
+
+Plain ES modules around a single mutable `game` state object; data-driven content tables;
+one canonical coordinate system. See `DESIGN.md` for the full internal spec.
+
+- **World space:** `x` ∈ [-200, 200] across the road, `z` = forward distance (units), speeds in
+  units/sec, times in seconds. The player's `z` advances at `runSpeed` (0 in the boss arena).
+- **Projection:** `render.js` owns `project(view, x, z) → {sx, sy, f}` — a pseudo-3D perspective
+  (focal-length model) that produces the trapezoid road. All drawing goes through it;
+  pixels-per-world-unit at any depth is `f * view.unitScale`.
+- **Collisions:** circles in the x/z plane, all resolved in one place (`collisions.js`).
+  Gates are crossing bands (trigger when the player's `z` passes the gate's `z` inside a slot).
+- **Update order** (fixed, `main.js`): input → level director → player → projectiles → enemies →
+  obstacles → pickups → gates → collisions → swap-remove cleanup → fx → HUD.
+- **Content is data:** `ENEMY_TYPES` (+ named behavior functions), `UPGRADES` (apply-function
+  table), `OBSTACLE_TYPES`, and a ~105-segment distance-keyed level `TIMELINE`.
+- **Hard caps** (`config.js CAPS/LIMITS`) keep stacked upgrades and entity counts stable.
+
+```
+index.html  css/style.css        shell + DOM HUD/screens
+js/main.js                       bootstrap, state machine, game loop
+js/config.js js/utils.js         tuning constants, helpers
+js/input.js                      keyboard + pointer-drag input
+js/render.js                     projection, camera, background/road, frame orchestration
+js/player.js js/projectiles.js   player+squad, volleys, enemy shots
+js/collisions.js                 ALL collision resolution
+js/enemies.js                    9 enemy types, behaviors, 3-phase boss
+js/gates.js js/pickups.js        19 upgrades, gate rows, heal/gem/shield pickups
+js/level.js js/obstacles.js      level director + timeline, 4 obstacle types
+js/effects.js                    particles, shake, flashes, damage numbers, boss intro
+js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative music
+```
+
+## Enemies
+
+| Type | Feel |
+|---|---|
+| **Grunt** | basic rusher with mild lane-homing |
+| **Runner** | fast, fragile, pronounced zigzag |
+| **Tank** | slow armored slab, huge contact damage, barely homes |
+| **Shooter** | holds ~500–700 ahead, strafes, fires aimed shots after a visible wind-up |
+| **Shield** | frontal plate absorbs your shots until it shatters (then it charges, staggered first) |
+| **Splitter** | wobbly blob that bursts into 2–3 minis on death |
+| **Mini** | tiny, quick, weak — swarms and splitter spawn |
+| **Charger** | plants itself, telegraphs 0.7s, then dashes at your locked position — sidestep it |
+| **Elite** (modifier) | any type: 2.5× HP, 1.3× size, gold aura, guaranteed heal drop |
+| **WARLORD** (boss) | 3 phases: aimed volleys → sweeping barrages → enraged fans + telegraphed lane slams; summons capped adds that drop heals; brief shield at each phase flip. HP scales to your actual DPS so the fight lasts ~30s for any build. |
+
+## Upgrades (gates)
+
+**Good:** `+N DMG`*, `+N% FIRE RATE`*, `+1 SHOT`, `+N ALLY`*, `HEAL 30`, `+25 MAX HP`, `+1 PIERCE`,
+`EXPLOSIVE SHOTS`, `+15% CRIT`, `+1 RICOCHET`, `+4° SPREAD`, `+20% MOVE SPEED`, `+120 MAGNET`
+(* = chargeable: value grows while you shoot the gate).
+**Bad (dodge!):** `-20 HP`, `-25% DMG`, `-25% FIRE RATE`.
+**Trade-offs:** `+2 SHOTS / -25% DMG`, `+60% DMG / -25 MAX HP`, `EXPLOSIVE / -20 HP`.
+
+All upgrades compose and are clamped (max 6 shots/volley, 8 allies, ~14 volleys/s, etc.),
+so no combination destabilizes the game.
+
+## Obstacles & pickups
+
+Crates (loot piñatas) · wide barriers (shoot through or steer around, drop double loot) ·
+spike strips (indestructible — steer!) · mines (shoot them: the blast hurts *enemies*, only
+touching them hurts you; they chain). Pickups: heal cross, score gem, 3s shield token.
+
+## Testing performed
+
+- Automated Playwright suite in real Chrome: start → steer (keys + drag) → full run → boss →
+  victory → restart → defeat → restart → resize → mobile viewport → pause/resume,
+  asserting **zero console errors** end-to-end.
+- Autopilot balance harness playing complete unassisted runs (greedy and cautious gate
+  policies): victory at ~3:20–3:35 with real HP pressure; boss fight ~25–35s.
+- Maxed-build stress test (6 shots × 9 shooters × 14 volleys/s ≈ 360 live projectiles + horde):
+  locked 120 FPS on a laptop, entity counts bounded by design caps.
+- Headless module-level simulations (level pacing sweep 0→46,000 units, mine chain reactions,
+  slot-geometry overlap sweep, boss pattern gap sampling) plus an adversarial code review pass.
+
+## Known limitations
+
+- Single level / single character; difficulty is not selectable.
+- No persistence (high scores reset on reload) and no meta-progression.
+- Music is a simple generative loop; it starts after the first interaction (autoplay policy).
+- `hpScale` rubber-bands enemy toughness with distance and boss HP scales with your DPS —
+  deliberately arcade-fair rather than simulationist.
+- Tested in Chromium and Firefox engines; Safari should work (webkit prefixes handled) but
+  wasn't part of the automated matrix.

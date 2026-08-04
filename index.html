@@ -2,9 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>MAXGEAR — Gate Rush</title>
 <link rel="stylesheet" href="css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><polygon points='16,2 28,28 16,20 4,28' fill='%2335e0ff'/></svg>">
 </head>
 <body>
 <div id="wrap">
@@ -13,51 +17,92 @@
   <!-- HUD (visible during play) -->
   <div id="hud" class="hidden">
     <div id="hud-top">
-      <div id="hp-wrap"><div id="hp-bar"></div><span id="hp-text">100</span></div>
-      <div id="progress-wrap"><div id="progress-bar"></div><div id="progress-marker">▲</div></div>
+      <div id="hp-wrap">
+        <div id="hp-ghost"></div>
+        <div id="hp-bar"></div>
+        <span id="hp-text">100</span>
+      </div>
+      <div id="progress-wrap">
+        <div id="progress-bar"></div>
+        <div id="progress-marker">▲</div>
+        <div id="progress-goal">⚑</div>
+      </div>
       <div id="score-wrap"><span id="score">0</span><span class="hud-label">SCORE</span></div>
     </div>
+
+    <div id="act-label" class="hidden"></div>
+
     <div id="boss-wrap" class="hidden">
       <span id="boss-name">WARLORD</span>
-      <div id="boss-bar-outer"><div id="boss-bar"></div></div>
+      <div id="boss-bar-outer">
+        <div id="boss-bar"></div>
+        <div id="boss-ticks"></div>
+      </div>
     </div>
+
     <div id="upgrade-toast" class="hidden"></div>
     <div id="stats-strip"></div>
-    <button id="mute-btn" title="Mute (M)">🔊</button>
-    <button id="pause-btn" title="Pause (Esc)">⏸</button>
+    <button id="mute-btn" type="button" title="Mute (M)" aria-label="Mute">🔊</button>
+    <button id="pause-btn" type="button" title="Pause (Esc)" aria-label="Pause">⏸</button>
   </div>
 
   <!-- Screens -->
   <div id="screen-title" class="screen">
-    <h1>MAX<span class="accent">GEAR</span></h1>
-    <p class="tagline">The ad was fake. This one is real.</p>
-    <div class="instructions">
-      <p><b>A / D</b> or <b>← →</b> or <b>drag</b> to steer</p>
-      <p>You fire automatically — drive through <span class="good">good gates</span>, dodge <span class="bad">bad ones</span></p>
-      <p>Shoot <span class="charge">charge gates</span> to power them up before you pass</p>
+    <div class="logo">
+      <h1>MAX<span class="accent">GEAR</span></h1>
+      <div class="logo-rule"></div>
+      <p class="tagline">The ad was fake. This one is real.</p>
     </div>
-    <button class="big-btn" id="btn-start">▶ &nbsp;START RUN</button>
+
+    <ul class="howto">
+      <li>
+        <span class="ic ic-move">⇄</span>
+        <span><b>DRAG</b> to steer &nbsp;·&nbsp; desktop: <b>A</b>/<b>D</b> or <b>←</b>/<b>→</b>. You shoot automatically.</span>
+      </li>
+      <li>
+        <span class="ic ic-good"></span>
+        <span>Drive <b class="good">THROUGH GREEN</b> gates. <b class="bad">DODGE RED</b> — they take stats and HP.</span>
+      </li>
+      <li>
+        <span class="ic ic-charge"></span>
+        <span><b class="charge">GOLD</b> gates say <b class="charge">SHOOT ME</b> — shoot to pump the number, then cross it.</span>
+      </li>
+    </ul>
+
+    <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
     <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
   </div>
 
   <div id="screen-pause" class="screen hidden">
     <h2>PAUSED</h2>
-    <button class="big-btn" id="btn-resume">RESUME</button>
-    <button class="small-btn" id="btn-quit">QUIT TO TITLE</button>
+    <button class="big-btn" id="btn-resume" type="button">RESUME</button>
+    <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
   </div>
 
   <div id="screen-defeat" class="screen hidden">
-    <h2 class="bad">WRECKED</h2>
-    <p id="defeat-stats"></p>
-    <button class="big-btn" id="btn-retry">↻ &nbsp;TRY AGAIN</button>
-    <p class="hint">R to restart</p>
+    <div class="end-card somber">
+      <h2 class="bad">WRECKED</h2>
+      <div id="defeat-stats" class="end-stats"></div>
+      <div class="build">
+        <span class="build-cap">FINAL BUILD</span>
+        <div id="defeat-build" class="build-row"></div>
+      </div>
+      <button class="big-btn" id="btn-retry" type="button">↻ &nbsp;TRY AGAIN</button>
+      <p class="hint">R to restart</p>
+    </div>
   </div>
 
   <div id="screen-victory" class="screen hidden">
-    <h2 class="good">WARLORD DOWN</h2>
-    <p id="victory-stats"></p>
-    <button class="big-btn" id="btn-again">↻ &nbsp;RUN IT BACK</button>
-    <p class="hint">R to restart</p>
+    <div class="end-card party">
+      <h2 class="good">WARLORD DOWN</h2>
+      <div id="victory-stats" class="end-stats"></div>
+      <div class="build">
+        <span class="build-cap">FINAL BUILD</span>
+        <div id="victory-build" class="build-row"></div>
+      </div>
+      <button class="big-btn pulse" id="btn-again" type="button">↻ &nbsp;RUN IT BACK</button>
+      <p class="hint">R to restart</p>
+    </div>
   </div>
 </div>
 <script type="module" src="js/main.js"></script>

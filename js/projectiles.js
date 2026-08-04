@@ -65,7 +65,7 @@ export function updateProjectiles(game, dt) {
 export function drawProjectiles(ctx, view, game) {
   for (const p of game.projectiles) {
     const { sx, sy, f } = project(view, p.x, p.z);
-    const r = Math.max(p.radius * f * view.unitScale * 0.14, 2.2);
+    const r = Math.max(p.radius * f * view.unitScale * 0.85, 2.4);
     ctx.fillStyle = p.crit ? '#ffd166' : '#8df3ff';
     ctx.beginPath();
     ctx.ellipse(sx, sy, r, r * 2.2, 0, 0, Math.PI * 2);
@@ -76,7 +76,7 @@ export function drawProjectiles(ctx, view, game) {
 export function drawEnemyShots(ctx, view, game) {
   for (const s of game.enemyShots) {
     const { sx, sy, f } = project(view, s.x, s.z);
-    const r = Math.max(s.radius * f * view.unitScale * 0.16, 3);
+    const r = Math.max(s.radius * f * view.unitScale, 3);
     ctx.fillStyle = s.color;
     ctx.beginPath();
     ctx.arc(sx, sy, r, 0, Math.PI * 2);

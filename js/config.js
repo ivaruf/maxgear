@@ -49,7 +49,7 @@ export const PROJECTILE = {
 };
 
 export const LIMITS = {
-  projectiles: 220,                  // max live player projectiles
+  projectiles: 400,                  // max live player projectiles (maxed squad+fireRate+multishot needs headroom)
   enemyShots: 120,
   particles: 450,
 };
