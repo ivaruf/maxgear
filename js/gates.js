@@ -10,11 +10,13 @@ import { healPlayer, damagePlayer } from './player.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
 
-export const GATE_COLORS = { good: '#3ddc84', bad: '#ff4d5a', mixed: '#c77dff' };
-const GATE_ACCENT = { good: '#a9ffd6', bad: '#ffc2c7', mixed: '#ecc9ff' };
+// Aged-enamel hues (v1.1.1): hue identity stays load-bearing (green = good,
+// red = bad, purple = trade-off) but desaturated/warmed to sit in the brass world.
+export const GATE_COLORS = { good: '#56b06c', bad: '#d2513c', mixed: '#a97bd1' };
+const GATE_ACCENT = { good: '#b9e3c4', bad: '#eec3b4', mixed: '#dcc6ee' };
 // Label tints for the two halves of a mixed (trade-off) gate.
-const MIXED_UP = '#a9ffd6';
-const MIXED_DOWN = '#ff9ba3';
+const MIXED_UP = '#b9e3c4';
+const MIXED_DOWN = '#e59a84';
 
 // ---- local sanity limits ----------------------------------------------------
 // CAPS (config.js) covers damage/projectiles/fireInterval/pierce/ricochet/crit/

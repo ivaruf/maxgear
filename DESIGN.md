@@ -90,7 +90,10 @@ pressure gauges, steam, smokestacks, drifting zeppelins, floating parallax cogs.
 **Color semantics ARE gameplay and MUST survive the re-theme** (only materials/shapes change):
 - player/allies/projectiles: aether cyan glow (existing `#35e0ff` family) — unchanged hexes
 - enemies: rusted red / copper / magenta family — unchanged hexes per type
-- gates: **green = good, red = bad, purple = trade-off**, gold = chargeable — unchanged hexes
+- gates: **green = good, red = bad, purple = trade-off**, gold = chargeable — hues retuned in
+  v1.1.1 to aged enamel so they sit in the brass world: good `#56b06c`, bad `#d2513c`,
+  mixed `#a97bd1` (`GATE_COLORS` in gates.js + `--good/--bad/--mixed` in style.css are the
+  single sources; keep them in sync)
 - Environment shifts to sepia/brass/iron: iron `#1a1512`, coal `#0f0c09`, brass `#c9973b`,
   bright brass `#f0b429`, copper `#b0652f`, rust `#8a3324`, steam `rgba(230,225,215,α)`.
 

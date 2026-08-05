@@ -21,6 +21,10 @@ const TOAST_HOLD = 1250;   // ms a lone toast stays up
 const TOAST_RUSH = 620;    // ms per toast when more are waiting
 const TOAST_MIN = 260;     // never flash a label shorter than this
 
+// One-shot steer hint: shown at the start of the FIRST run this page load
+// (replaces the old title-screen how-to panel; the game teaches the rest itself)
+let steerHintShown = false;
+
 // --- change trackers for the little "pop" animations -------------------------
 let prevScore = 0;
 let scoreFlip = false;
@@ -129,6 +133,14 @@ export const ui = {
     }
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
+    if (state === null && !steerHintShown) {
+      steerHintShown = true;
+      const h = $('steer-hint');
+      if (h) {
+        h.classList.remove('hidden');
+        setTimeout(() => h.classList.add('hidden'), 4700); // matches the CSS timeline
+      }
+    }
     if (state !== null && state !== 'pause') {
       clearToasts();
       audio.setBossMode(false);

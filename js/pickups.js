@@ -10,7 +10,7 @@ import { healPlayer } from './player.js';
 export const SHIELD_TIME = 3;   // seconds of invulnerability from a shieldToken
 
 export const PICKUP_TYPES = {
-  heal: { radius: 14, color: '#3ddc84', value: 15 },
+  heal: { radius: 14, color: '#56b06c', value: 15 },
   gem: { radius: 12, color: '#ffd166', value: 50 },
   shieldToken: { radius: 14, color: '#35e0ff', value: SHIELD_TIME },
 };

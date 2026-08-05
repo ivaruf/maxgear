@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.1.0'; // steampunk re-theme
+const VERSION = 'v1.1.2'; // title decluttered: how-to panel -> one-shot steer hint
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

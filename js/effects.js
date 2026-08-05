@@ -168,7 +168,7 @@ export const fx = {
   // Gate celebration: light pillar + ground ring + a shower of spinning cogs
   // (same particle budget as the old confetti). Call from gates.js
   // applyGateSlot(): fx.gateBurst(game.player.x, gate.z, color).
-  gateBurst(x, z, color = '#3ddc84') {
+  gateBurst(x, z, color = '#56b06c') {
     spawn('pillar', x, 0, z, 0, 0, 0, 0.55, 26, color, 0, 0, 0.9, 280);
     spawn('ring', x, 1, z, 0, 0, 0, 0.42, 24, color, 0, 0, 0.8, 150);
     spawn('flash', x, 10, z, 0, 0, 0, 0.16, 26, '#ffffff', 0, 0, 0.55, 46);
