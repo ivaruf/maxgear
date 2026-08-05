@@ -508,16 +508,9 @@ function buildSky(view, rng) {
     bh *= 1.5;
   }
 
-  // hands frozen near "gear o'clock" (hour ~X, minute ~II) + hub cog
-  clockHand(s, sunX, sunY, -Math.PI / 2 + TAU * (10 / 12), R * 0.52, R * 0.075, R * 0.14);
-  clockHand(s, sunX, sunY, -Math.PI / 2 + TAU * (2 / 12), R * 0.76, R * 0.055, R * 0.12);
-  gearPath(s, sunX, sunY, R * 0.1, 8, 0.3);
-  s.fillStyle = '#33200f';
-  s.fill();
-  s.beginPath();
-  s.arc(sunX, sunY, R * 0.03, 0, TAU);
-  s.fillStyle = 'rgba(255,226,164,0.6)';
-  s.fill();
+  // hands + hub are NOT baked: drawClockHands() animates them live so the
+  // great clock actually runs (slowly). Store the dial geometry for it.
+  bg.dialX = sunX; bg.dialY = sunY; bg.dialR = R;
 
   // warm bloom over dial + sky (re-lights the slits, ties the disc to the haze)
   const bloom = s.createRadialGradient(sunX, sunY, R * 0.55, sunX, sunY, R * 2.9);
@@ -897,11 +890,28 @@ function drawStackPuffs(ctx, view, mt, ox, oy) {
   ctx.restore();
 }
 
+// The great clock runs on wall time so it keeps turning on the title screen:
+// minute hand ~1 rev / 2 min, hour hand 12x slower, starting from the baked
+// "gear o'clock" (10:10) pose. Drawn under the additive glow pass.
+function drawClockHands(ctx, now) {
+  const { dialX: x, dialY: y, dialR: R } = bg;
+  clockHand(ctx, x, y, -Math.PI / 2 + TAU * (10 / 12 + now / 1440), R * 0.52, R * 0.075, R * 0.14);
+  clockHand(ctx, x, y, -Math.PI / 2 + TAU * (2 / 12 + now / 120), R * 0.76, R * 0.055, R * 0.12);
+  gearPath(ctx, x, y, R * 0.1, 8, 0.3);
+  ctx.fillStyle = '#33200f';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, R * 0.03, 0, TAU);
+  ctx.fillStyle = 'rgba(255,226,164,0.6)';
+  ctx.fill();
+}
+
 function drawBackground(ctx, view, game, now, mt) {
   const { W, H } = view;
   ensureBackground(ctx, view);
 
   ctx.drawImage(bg.sky, 0, 0, W, H);
+  drawClockHands(ctx, now);
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';

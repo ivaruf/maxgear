@@ -331,6 +331,31 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;
   width: max-content; max-width: calc(100vw - 24px);
 }
+
+/* ---- approaching-gate legend: the TEXT for the icons shown in the field ---- */
+#gate-legend {
+  position: absolute; bottom: calc(38px + var(--safe-b)); left: 50%;
+  transform: translateX(-50%);
+  display: flex; gap: 10px; align-items: center;
+  font-family: var(--font-display);
+  font-size: 12px; font-weight: 700; letter-spacing: 1.2px;
+  pointer-events: none; white-space: nowrap;
+  max-width: calc(100vw - 16px);
+}
+#gate-legend span {
+  padding: 5px 14px; border-radius: 5px;
+  background: linear-gradient(180deg, rgba(42, 32, 22, 0.9), rgba(15, 12, 9, 0.92));
+  border: 1px solid var(--rim);
+  box-shadow: var(--sheen), 0 2px 8px rgba(0, 0, 0, 0.4);
+  overflow: hidden; text-overflow: ellipsis;
+}
+#gate-legend span.good { color: #8fd8a3; border-color: rgba(86, 176, 108, 0.65); }
+#gate-legend span.bad { color: #eb9078; border-color: rgba(210, 81, 60, 0.65); }
+#gate-legend span.mixed { color: #cfa9ec; border-color: rgba(169, 123, 209, 0.65); }
+@media (max-width: 600px) {
+  #gate-legend { font-size: 10.5px; gap: 6px; bottom: calc(34px + var(--safe-b)); }
+  #gate-legend span { padding: 4px 9px; }
+}
 #stats-strip i {
   font-style: normal;
   font-size: 11px; font-weight: 800; letter-spacing: 0.4px;
@@ -504,6 +529,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   pointer-events: none;
 }
 #steer-hint b { color: var(--charge); }
+@media (max-width: 600px) {
+  #steer-hint {
+    font-size: 10px; letter-spacing: 1px; padding: 8px 12px;
+    max-width: 94vw; overflow: hidden; text-overflow: ellipsis;
+  }
+}
 @keyframes steerHint {
   0% { opacity: 0; transform: translateX(-50%) translateY(8px); }
   10%, 78% { opacity: 1; transform: translateX(-50%); }

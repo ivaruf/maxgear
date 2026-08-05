@@ -17,12 +17,24 @@ export function createPlayer() {
     hp: PLAYER_DEFAULTS.maxHp,
     maxHp: PLAYER_DEFAULTS.maxHp,
     stats: { ...BASE_STATS },
+    allies: [],          // persistent squad ships (see ALLY below)
     fireTimer: 0,
     invuln: 0,
     hurtFlash: 0,
     dead: false,
   };
 }
+
+// Squad ships: orbit the main ship, fire the same volleys, and are MORTAL —
+// they have their own HP, absorb enemy contact/shots, and die when spent.
+export const ALLY = {
+  radius: 12,
+  maxHp: 60,
+  orbitR: 46,          // world units around the player
+  orbitSpeed: 1.15,    // rad/s
+  invulnTime: 0.35,    // per-ally i-frames so one wave can't delete it instantly
+  hurtBarTime: 1.6,    // s the mini HP bar lingers after damage
+};
 
 export function clampStats(stats) {
   stats.squad = clamp(Math.round(stats.squad), 0, CAPS.squad);
@@ -35,15 +47,21 @@ export function clampStats(stats) {
   stats.damage = clamp(stats.damage, 1, CAPS.damage);
 }
 
-// Squad members fan out in a wedge behind the player.
-export function squadOffsets(count) {
-  const out = [];
-  for (let i = 0; i < count; i++) {
-    const side = i % 2 === 0 ? 1 : -1;
-    const rank = Math.floor(i / 2) + 1;
-    out.push({ dx: side * rank * 34, dz: -rank * 26 });
+// Keep the ally roster in sync with stats.squad: upgrades grow it (fresh ships
+// arrive at full HP), clampStats caps it, and deaths shrink stats.squad back.
+function syncAllies(game) {
+  const p = game.player;
+  while (p.allies.length < p.stats.squad) {
+    p.allies.push({
+      x: p.x, z: p.z,
+      radius: ALLY.radius,
+      hp: ALLY.maxHp, maxHp: ALLY.maxHp,
+      invuln: 0.6,     // spawn grace
+      flash: 0, hurtT: 0,
+      dead: false,
+    });
   }
-  return out;
+  if (p.allies.length > p.stats.squad) p.allies.length = p.stats.squad;
 }
 
 export function updatePlayer(game, dt, input) {
@@ -62,19 +80,53 @@ export function updatePlayer(game, dt, input) {
   }
   p.x = clamp(p.x, -ROAD_HALF + p.radius, ROAD_HALF - p.radius);
 
-  // Auto-fire: player + each squad member fires the full volley
+  // ---- allies: bury the dead, sync with stats, orbit the mothership --------
+  let lost = false;
+  for (let i = p.allies.length - 1; i >= 0; i--) {
+    if (p.allies[i].dead) { p.allies.splice(i, 1); lost = true; }
+  }
+  if (lost) p.stats.squad = p.allies.length;
+  syncAllies(game);
+  const n = p.allies.length;
+  for (let i = 0; i < n; i++) {
+    const a = p.allies[i];
+    const ang = game.time * ALLY.orbitSpeed + (i / n) * Math.PI * 2;
+    a.x = clamp(p.x + Math.cos(ang) * ALLY.orbitR, -ROAD_HALF + a.radius, ROAD_HALF - a.radius);
+    a.z = p.z + Math.sin(ang) * ALLY.orbitR;
+    a.invuln = Math.max(0, a.invuln - dt);
+    a.flash = Math.max(0, a.flash - dt);
+    a.hurtT = Math.max(0, a.hurtT - dt);
+  }
+
+  // Auto-fire: player + every living ally fires the full volley
   p.fireTimer -= dt;
   if (p.fireTimer <= 0) {
     p.fireTimer = p.stats.fireInterval;
     fireVolley(game, p.x, p.z + 20, p.stats);
-    for (const o of squadOffsets(p.stats.squad)) {
-      fireVolley(game, clamp(p.x + o.dx, -ROAD_HALF, ROAD_HALF), p.z + 20 + o.dz, p.stats);
-    }
+    for (const a of p.allies) fireVolley(game, a.x, a.z + 14, p.stats);
     audio.shoot();
   }
 
   p.invuln = Math.max(0, p.invuln - dt);
   p.hurtFlash = Math.max(0, p.hurtFlash - dt);
+}
+
+// An ally got hit (collisions.js). Own HP, own i-frames, no revive.
+export function damageAlly(game, ally, amount) {
+  if (ally.dead || ally.invuln > 0 || game.state !== 'playing') return;
+  ally.hp -= amount;
+  ally.invuln = ALLY.invulnTime;
+  ally.flash = 0.2;
+  ally.hurtT = ALLY.hurtBarTime;
+  fx.hitSpark(ally.x, ally.z, '#2fb8d6');
+  audio.hit();
+  if (ally.hp <= 0) {
+    ally.hp = 0;
+    ally.dead = true;
+    fx.explosion(ally.x, ally.z, 46, '#2fb8d6');
+    fx.textPop(ally.x, ally.z + 20, 'ALLY DOWN', '#8fd8ff');
+    audio.explode();
+  }
 }
 
 export function damagePlayer(game, amount, ignoreInvuln = false) {
@@ -99,8 +151,22 @@ export function damagePlayer(game, amount, ignoreInvuln = false) {
 export function healPlayer(game, amount) {
   const p = game.player;
   if (p.dead) return; // a heal collected during the death beat must not revive the HUD
-  p.hp = Math.min(p.maxHp, p.hp + amount);
-  fx.textPop(p.x, p.z + 30, `+${Math.round(amount)}`, '#56b06c');
+  const used = Math.min(p.maxHp - p.hp, amount);
+  p.hp += used;
+  if (used > 0) fx.textPop(p.x, p.z + 30, `+${Math.round(used)}`, '#56b06c');
+  // Overflow repairs the most damaged ally instead of evaporating.
+  let over = amount - used;
+  if (over > 0 && p.allies.length) {
+    let worst = null;
+    for (const a of p.allies) {
+      if (a.hp < a.maxHp && (!worst || a.hp / a.maxHp < worst.hp / worst.maxHp)) worst = a;
+    }
+    if (worst) {
+      worst.hp = Math.min(worst.maxHp, worst.hp + over);
+      fx.textPop(worst.x, worst.z + 20, `+${Math.round(over)}`, '#8fd8ff');
+      fx.hitSpark(worst.x, worst.z, '#8fd8ff');
+    }
+  }
 }
 
 // Steampunk gyro-wedge: aether-glow hull (silhouette unchanged for readability),
@@ -159,10 +225,24 @@ export function drawPlayer(ctx, view, game) {
   const p = game.player;
   if (p.dead) return;
 
-  // Squad first (behind)
-  for (const o of squadOffsets(p.stats.squad)) {
-    const pos = project(view, clamp(p.x + o.dx, -ROAD_HALF, ROAD_HALF), p.z + o.dz);
-    drawShip(ctx, pos.sx, pos.sy, pos.f * view.unitScale * 0.8, '#2fb8d6', false, game.time + o.dx);
+  // Allies first (they orbit through both in-front and behind positions)
+  for (let i = 0; i < p.allies.length; i++) {
+    const a = p.allies[i];
+    const pos = project(view, a.x, a.z);
+    const as = pos.f * view.unitScale * 0.72;
+    if (a.invuln > 0.4) ctx.globalAlpha = 0.55; // spawn/i-frame shimmer
+    drawShip(ctx, pos.sx, pos.sy, as, a.flash > 0 ? '#ff8090' : '#2fb8d6', false, game.time + i * 1.7);
+    ctx.globalAlpha = 1;
+    // mini HP bar only while recently hurt — no permanent clutter
+    if (a.hurtT > 0 && !a.dead) {
+      const bw = 26 * as;
+      ctx.globalAlpha = Math.min(1, a.hurtT / 0.4);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(pos.sx - bw / 2, pos.sy - 26 * as, bw, 3);
+      ctx.fillStyle = '#2fb8d6';
+      ctx.fillRect(pos.sx - bw / 2, pos.sy - 26 * as, bw * (a.hp / a.maxHp), 3);
+      ctx.globalAlpha = 1;
+    }
   }
 
   const { sx, sy, f } = project(view, p.x, p.z);

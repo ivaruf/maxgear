@@ -49,51 +49,61 @@ export const UPGRADES = {
   // ---- good ---------------------------------------------------------------
   damage: {
     kind: 'good', base: 10, chargeable: true, chargeStep: 1, max: 40,
+    icon: 'shell', vtext: (v) => `+${v}`,
     label: (v) => `+${v} DMG`,
     apply: (game, v) => { game.player.stats.damage += v; },
   },
   fireRate: {
     kind: 'good', base: 25, chargeable: true, chargeStep: 1, max: 60,
+    icon: 'rof', vtext: (v) => `+${v}%`,
     label: (v) => `+${v}% FIRE RATE`,
     apply: (game, v) => { game.player.stats.fireInterval /= 1 + v / 100; },
   },
   multishot: {
     kind: 'good', base: 1,
+    icon: 'fan', vtext: (v) => `+${v}`,
     label: (v) => `+${v} SHOT${v > 1 ? 'S' : ''}`,
     apply: (game, v) => { game.player.stats.projectiles += v; },
   },
   squad: {
     kind: 'good', base: 1, chargeable: true, chargeStep: 0.08, max: 3,
+    icon: 'ally', vtext: (v) => `+${Math.floor(v)}`,
     label: (v) => `+${Math.floor(v)} ALL${Math.floor(v) > 1 ? 'IES' : 'Y'}`,
     apply: (game, v) => { game.player.stats.squad += Math.floor(v); },
   },
   heal: {
     kind: 'good', base: 30,
+    icon: 'cross', vtext: (v) => `+${v}`,
     label: (v) => `HEAL ${v}`,
     apply: (game, v) => healPlayer(game, v),
   },
   maxHp: {
     kind: 'good', base: 25,
+    icon: 'heartUp', vtext: (v) => `+${v}`,
     label: (v) => `+${v} MAX HP`,
     apply: (game, v) => { addMaxHp(game, v); healPlayer(game, v); },
   },
   pierce: {
     kind: 'good', base: 1,
+    icon: 'pierce', vtext: (v) => `+${v}`,
     label: (v) => `+${v} PIERCE`,
     apply: (game, v) => { game.player.stats.pierce += v; },
   },
   explosive: {
     kind: 'good', base: 1,
+    icon: 'bomb',
     label: () => 'EXPLOSIVE SHOTS',
     apply: (game) => addExplosive(game, 1),
   },
   crit: {
     kind: 'good', base: 15,
+    icon: 'crit', vtext: (v) => `+${v}%`,
     label: (v) => `+${v}% CRIT`,
     apply: (game, v) => { game.player.stats.critChance += v / 100; },
   },
   ricochet: {
     kind: 'good', base: 1,
+    icon: 'ricochet', vtext: (v) => `+${v}`,
     label: (v) => `+${v} RICOCHET`,
     apply: (game, v) => { game.player.stats.ricochet += v; },
   },
@@ -101,6 +111,7 @@ export const UPGRADES = {
     // QA-measured: WIDER spread is always a DPS loss, so the "good" version
     // tightens the volley (label matches the ui.js end-screen chip logic too)
     kind: 'good', base: 4,
+    icon: 'focus',
     label: () => 'TIGHTER SPREAD',
     apply: (game, v) => {
       const s = game.player.stats;
@@ -109,11 +120,13 @@ export const UPGRADES = {
   },
   moveSpeed: {
     kind: 'good', base: 20,
+    icon: 'chevrons', vtext: (v) => `+${v}%`,
     label: (v) => `+${v}% MOVE SPEED`,
     apply: (game, v) => { game.player.stats.moveSpeed *= 1 + v / 100; },
   },
   magnet: {
     kind: 'good', base: 120,
+    icon: 'magnet', vtext: (v) => `+${v}`,
     label: (v) => `+${v} MAGNET`,
     apply: (game, v) => {
       const s = game.player.stats;
@@ -124,16 +137,19 @@ export const UPGRADES = {
   // ---- bad ----------------------------------------------------------------
   hurt: {
     kind: 'bad', base: 20,
+    icon: 'heartCrack', vtext: (v) => `-${v}`,
     label: (v) => `-${v} HP`,
     apply: (game, v) => damagePlayer(game, v, true),
   },
   loseDamage: {
     kind: 'bad', base: 25,
+    icon: 'shellDown', vtext: (v) => `-${v}%`,
     label: (v) => `-${v}% DMG`,
     apply: (game, v) => { game.player.stats.damage *= 1 - v / 100; },
   },
   loseFireRate: {
     kind: 'bad', base: 25,
+    icon: 'watchDown', vtext: (v) => `-${v}%`,
     label: (v) => `-${v}% FIRE RATE`,
     apply: (game, v) => {
       const s = game.player.stats;
@@ -144,6 +160,7 @@ export const UPGRADES = {
   // ---- trade-offs (label shows BOTH sides, split on ' / ' when drawn) ------
   tradeSprayPray: {
     kind: 'mixed', base: 2,
+    iconGain: 'fan', vtextGain: (v) => `+${v}`, iconLoss: 'shellDown', vtextLoss: () => '-25%',
     label: (v) => `+${v} SHOTS / -25% DMG`,
     apply: (game, v) => {
       const s = game.player.stats;
@@ -153,6 +170,7 @@ export const UPGRADES = {
   },
   tradeGlassCannon: {
     kind: 'mixed', base: 60,
+    iconGain: 'shell', vtextGain: (v) => `+${v}%`, iconLoss: 'heartCrack', vtextLoss: () => '-25',
     label: (v) => `+${v}% DMG / -25 MAX HP`,
     apply: (game, v) => {
       game.player.stats.damage *= 1 + v / 100;
@@ -161,6 +179,7 @@ export const UPGRADES = {
   },
   tradeBlastRisk: {
     kind: 'mixed', base: 20,
+    iconGain: 'bomb', iconLoss: 'heartCrack', vtextLoss: (v) => `-${v}`,
     label: (v) => `EXPLOSIVE / -${v} HP`,
     apply: (game, v) => {
       addExplosive(game, 1);
@@ -408,22 +427,259 @@ function hazardStripes(ctx, x, y, w, h, k, color, alpha) {
 }
 
 // Bold text with a dark outline, auto-shrunk to fit maxW but never below min.
-function drawFittedLabel(ctx, text, cx, baseY, size, maxW, fill) {
-  let fs = size;
-  ctx.font = `900 ${fs}px sans-serif`;
-  const w = ctx.measureText(text).width;
-  if (w > maxW) {
-    fs = Math.max(MIN_LABEL_PX, (fs * maxW) / w);
-    ctx.font = `900 ${fs}px sans-serif`;
+
+// ---- upgrade icon glyphs ------------------------------------------------------
+// Words live in the HUD legend (ui.js); panels show glyph + number only.
+// Painters draw centered at (0,0) inside a box of size s; the caller sets the
+// color. Kept as beginPath primitives (no per-frame allocation).
+function heartPath(ctx, s) {
+  ctx.beginPath();
+  ctx.moveTo(0, s * 0.36);
+  ctx.bezierCurveTo(-s * 0.52, 0, -s * 0.3, -s * 0.4, 0, -s * 0.12);
+  ctx.bezierCurveTo(s * 0.3, -s * 0.4, s * 0.52, 0, 0, s * 0.36);
+  ctx.closePath();
+}
+function arrowBadge(ctx, x, y, s, dir) { // small solid up/down arrow
+  ctx.beginPath();
+  ctx.moveTo(x, y + dir * s * 0.5);
+  ctx.lineTo(x - s * 0.34, y + dir * s * 0.02);
+  ctx.lineTo(x - s * 0.12, y + dir * s * 0.02);
+  ctx.lineTo(x - s * 0.12, y - dir * s * 0.45);
+  ctx.lineTo(x + s * 0.12, y - dir * s * 0.45);
+  ctx.lineTo(x + s * 0.12, y + dir * s * 0.02);
+  ctx.lineTo(x + s * 0.34, y + dir * s * 0.02);
+  ctx.closePath();
+  ctx.fill();
+}
+function shellShape(ctx, s) {
+  const w = s * 0.3, h = s * 0.9;
+  ctx.beginPath();
+  ctx.moveTo(0, -h / 2);
+  ctx.quadraticCurveTo(w, -h * 0.14, w, h * 0.1);
+  ctx.lineTo(w, h / 2);
+  ctx.lineTo(-w, h / 2);
+  ctx.lineTo(-w, h * 0.1);
+  ctx.quadraticCurveTo(-w, -h * 0.14, 0, -h / 2);
+  ctx.fill();
+}
+const ICONS = {
+  shell: shellShape,
+  rof(ctx, s) { // stream of shells with motion dashes
+    for (let i = -1; i <= 1; i++) {
+      ctx.save();
+      ctx.translate(i * s * 0.26, i * i * s * 0.06);
+      ctx.beginPath();
+      ctx.ellipse(0, -s * 0.14, s * 0.1, s * 0.22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(-s * 0.045, s * 0.18, s * 0.09, s * 0.3);
+      ctx.restore();
+    }
+  },
+  fan(ctx, s) { // three diverging bullets
+    for (let i = -1; i <= 1; i++) {
+      ctx.save();
+      ctx.rotate(i * 0.44);
+      ctx.beginPath();
+      ctx.ellipse(0, -s * 0.26, s * 0.1, s * 0.24, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath();
+    ctx.arc(0, s * 0.28, s * 0.12, 0, Math.PI * 2);
+    ctx.fill();
+  },
+  ally(ctx, s) { // two ship wedges
+    for (const dx of [-s * 0.24, s * 0.24]) {
+      ctx.beginPath();
+      ctx.moveTo(dx, -s * 0.34);
+      ctx.lineTo(dx + s * 0.2, s * 0.3);
+      ctx.lineTo(dx, s * 0.14);
+      ctx.lineTo(dx - s * 0.2, s * 0.3);
+      ctx.closePath();
+      ctx.fill();
+    }
+  },
+  cross(ctx, s) {
+    const w = s * 0.28;
+    ctx.fillRect(-w / 2, -s * 0.45, w, s * 0.9);
+    ctx.fillRect(-s * 0.45, -w / 2, s * 0.9, w);
+  },
+  heartUp(ctx, s) {
+    ctx.save();
+    ctx.translate(-s * 0.08, s * 0.05);
+    heartPath(ctx, s * 0.82);
+    ctx.fill();
+    ctx.restore();
+    arrowBadge(ctx, s * 0.34, -s * 0.28, s * 0.34, -1);
+  },
+  heartCrack(ctx, s) {
+    heartPath(ctx, s);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(12,9,6,0.9)'; // crack cut into the heart
+    ctx.lineWidth = s * 0.1;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.16);
+    ctx.lineTo(-s * 0.1, 0);
+    ctx.lineTo(s * 0.08, s * 0.1);
+    ctx.lineTo(-s * 0.04, s * 0.32);
+    ctx.stroke();
+  },
+  pierce(ctx, s) { // arrow through a plate
+    ctx.save();
+    ctx.globalAlpha *= 0.75;
+    ctx.fillRect(-s * 0.42, -s * 0.09, s * 0.84, s * 0.18);
+    ctx.restore();
+    ctx.fillRect(-s * 0.06, -s * 0.3, s * 0.12, s * 0.75);
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.5);
+    ctx.lineTo(s * 0.18, -s * 0.22);
+    ctx.lineTo(-s * 0.18, -s * 0.22);
+    ctx.closePath();
+    ctx.fill();
+  },
+  bomb(ctx, s) {
+    ctx.beginPath();
+    ctx.arc(0, s * 0.1, s * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.lineWidth = s * 0.09;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.08, -s * 0.18);
+    ctx.quadraticCurveTo(s * 0.22, -s * 0.34, s * 0.34, -s * 0.3);
+    ctx.stroke();
+    // spark
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.4;
+      ctx.beginPath();
+      ctx.moveTo(s * 0.34 + Math.cos(a) * s * 0.05, -s * 0.3 + Math.sin(a) * s * 0.05);
+      ctx.lineTo(s * 0.34 + Math.cos(a) * s * 0.14, -s * 0.3 + Math.sin(a) * s * 0.14);
+      ctx.stroke();
+    }
+  },
+  crit(ctx, s) { // 4-point starburst
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.5);
+    ctx.lineTo(s * 0.12, -s * 0.12);
+    ctx.lineTo(s * 0.5, 0);
+    ctx.lineTo(s * 0.12, s * 0.12);
+    ctx.lineTo(0, s * 0.5);
+    ctx.lineTo(-s * 0.12, s * 0.12);
+    ctx.lineTo(-s * 0.5, 0);
+    ctx.lineTo(-s * 0.12, -s * 0.12);
+    ctx.closePath();
+    ctx.fill();
+  },
+  ricochet(ctx, s) {
+    ctx.lineWidth = s * 0.12;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.42, s * 0.36);
+    ctx.lineTo(-s * 0.08, -s * 0.16);
+    ctx.lineTo(s * 0.14, s * 0.14);
+    ctx.lineTo(s * 0.36, -s * 0.26);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(s * 0.46, -s * 0.44);
+    ctx.lineTo(s * 0.42, -s * 0.1);
+    ctx.lineTo(s * 0.18, -s * 0.3);
+    ctx.closePath();
+    ctx.fill();
+  },
+  focus(ctx, s) { // arrows converging on a point = tighter spread
+    ctx.beginPath();
+    ctx.arc(0, 0, s * 0.09, 0, Math.PI * 2);
+    ctx.fill();
+    for (const d of [-1, 1]) {
+      ctx.fillRect(d * s * 0.2, -s * 0.05, s * 0.26, s * 0.1);
+      ctx.beginPath();
+      ctx.moveTo(d * s * 0.14, 0);
+      ctx.lineTo(d * s * 0.3, -s * 0.16);
+      ctx.lineTo(d * s * 0.3, s * 0.16);
+      ctx.closePath();
+      ctx.fill();
+    }
+  },
+  chevrons(ctx, s) {
+    ctx.lineWidth = s * 0.14;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = ctx.fillStyle;
+    for (const y of [s * 0.12, -s * 0.22]) {
+      ctx.beginPath();
+      ctx.moveTo(-s * 0.32, y + s * 0.22);
+      ctx.lineTo(0, y);
+      ctx.lineTo(s * 0.32, y + s * 0.22);
+      ctx.stroke();
+    }
+  },
+  magnet(ctx, s) { // horseshoe, poles up
+    ctx.lineWidth = s * 0.2;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.beginPath();
+    ctx.arc(0, -s * 0.05, s * 0.28, Math.PI, 0, true);
+    ctx.moveTo(-s * 0.28, -s * 0.05);
+    ctx.lineTo(-s * 0.28, -s * 0.38);
+    ctx.moveTo(s * 0.28, -s * 0.05);
+    ctx.lineTo(s * 0.28, -s * 0.38);
+    ctx.stroke();
+    ctx.save();
+    ctx.globalAlpha *= 0.6;
+    ctx.fillRect(-s * 0.38, -s * 0.5, s * 0.2, s * 0.14);
+    ctx.fillRect(s * 0.18, -s * 0.5, s * 0.2, s * 0.14);
+    ctx.restore();
+  },
+  shellDown(ctx, s) {
+    ctx.save();
+    ctx.translate(-s * 0.1, 0);
+    ctx.scale(0.78, 0.78);
+    shellShape(ctx, s);
+    ctx.restore();
+    arrowBadge(ctx, s * 0.34, s * 0.1, s * 0.36, 1);
+  },
+  watchDown(ctx, s) { // pocket watch slowing down
+    ctx.lineWidth = s * 0.1;
+    ctx.strokeStyle = ctx.fillStyle;
+    ctx.beginPath();
+    ctx.arc(-s * 0.08, s * 0.04, s * 0.32, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillRect(-s * 0.16, -s * 0.42, s * 0.16, s * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.08, s * 0.04);
+    ctx.lineTo(-s * 0.08, -s * 0.16);
+    ctx.moveTo(-s * 0.08, s * 0.04);
+    ctx.lineTo(s * 0.06, s * 0.12);
+    ctx.stroke();
+    arrowBadge(ctx, s * 0.36, -s * 0.24, s * 0.34, 1);
+  },
+};
+
+function drawIcon(ctx, name, x, y, s, color) {
+  const painter = ICONS[name];
+  if (!painter) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = color;
+  painter(ctx, s);
+  ctx.restore();
+}
+
+// Bold outlined number centered at (x, y). Shrinks to fit maxW, never below
+// the global minimum so it stays readable at distance.
+function numberLabel(ctx, text, x, y, size, tint, maxW) {
+  ctx.font = `900 ${size}px sans-serif`;
+  const tw = ctx.measureText(text).width;
+  if (tw > maxW) {
+    size = Math.max(MIN_LABEL_PX, (size * maxW) / tw);
+    ctx.font = `900 ${size}px sans-serif`;
   }
-  ctx.lineJoin = 'round';
-  ctx.miterLimit = 2;
-  ctx.lineWidth = Math.max(2, fs * 0.18);
-  ctx.strokeStyle = 'rgba(5,7,16,0.92)';
-  ctx.strokeText(text, cx, baseY);
-  ctx.fillStyle = fill;
-  ctx.fillText(text, cx, baseY);
-  return fs;
+  ctx.textAlign = 'center';
+  ctx.lineWidth = Math.max(1.5, size * 0.16);
+  ctx.strokeStyle = 'rgba(10,8,5,0.85)';
+  ctx.strokeText(text, x, y + size * 0.36);
+  ctx.fillStyle = tint;
+  ctx.fillText(text, x, y + size * 0.36);
+  return size;
 }
 
 function drawSlot(ctx, view, game, gate, slot) {
@@ -600,74 +856,86 @@ function drawSlot(ctx, view, game, gate, slot) {
   ctx.fillStyle = withAlpha(accent, 0.75);
   ctx.fillRect(x0, y1 - Math.max(1, 1.5 * k), w, Math.max(2, 3 * k));
 
-  // --- label ---------------------------------------------------------------
-  const raw = up.label(Math.round(slot.value));
-  let lines, tints;
-  if (kind === 'mixed' && raw.includes('/')) {
-    lines = raw.split('/').map((t) => t.trim());
-    tints = [MIXED_UP, MIXED_DOWN];
-  } else if (kind === 'bad') {
-    lines = [`⚠ ${raw} ⚠`];
-    tints = ['#ffffff'];
-  } else {
-    lines = [raw];
-    tints = ['#ffffff'];
-  }
-
-  const size = Math.max(MIN_LABEL_PX + 2, 26 * k) * (1 + flash * 0.1);
+  // --- icon + value (no words in the field; the HUD legend carries the text) --
+  const v = Math.round(slot.value);
   const maxW = w * 0.9;
-  // Pre-fit every line to a shared size so multi-line labels stay aligned.
-  let fitted = size;
-  for (const line of lines) {
-    ctx.font = `900 ${size}px sans-serif`;
-    const tw = ctx.measureText(line).width;
-    if (tw > maxW) fitted = Math.min(fitted, Math.max(MIN_LABEL_PX, (size * maxW) / tw));
-  }
-  const lh = fitted * 1.06;
   const centerY = y1 - h * 0.56;
-  const top = centerY - (lines.length * lh) / 2;
 
-  // Engraved nameplate behind the label: dark iron ground (raises text contrast
-  // rather than lowering it) with brass edges and corner rivets.
-  // (text ink runs from ~top + 0.25em to the last baseline + ~0.2em)
-  const plW = Math.min(w * 0.96, maxW + fitted * 0.9);
-  const plH = (lines.length - 1) * lh + fitted * 1.36;
-  const plX = cx - plW / 2;
-  const plY = top + fitted * 0.02;
+  // Backing plate so glyph/number pop against the smoked glass.
+  const plW = w * 0.72;
+  const plH = h * 0.52;
   ctx.fillStyle = 'rgba(18,14,9,0.34)';
-  ctx.fillRect(plX, plY, plW, plH);
+  ctx.fillRect(cx - plW / 2, centerY - plH / 2, plW, plH);
   ctx.fillStyle = withAlpha(BRASS, 0.55);
   const edge = Math.max(1, 1.1 * k);
-  ctx.fillRect(plX, plY, plW, edge);
-  ctx.fillRect(plX, plY + plH - edge, plW, edge);
-  const prv = Math.max(1, 1.6 * k);
-  if (detail && plW > prv * 8) {
-    const inset = prv * 2.2;
-    rivet(ctx, plX + inset, plY + inset, prv);
-    rivet(ctx, plX + plW - inset, plY + inset, prv);
-    rivet(ctx, plX + inset, plY + plH - inset, prv);
-    rivet(ctx, plX + plW - inset, plY + plH - inset, prv);
-  }
+  ctx.fillRect(cx - plW / 2, centerY - plH / 2, plW, edge);
+  ctx.fillRect(cx - plW / 2, centerY + plH / 2 - edge, plW, edge);
 
-  for (let i = 0; i < lines.length; i++) {
-    drawFittedLabel(ctx, lines[i], cx, top + fitted + i * lh, fitted, maxW, tints[i] || '#ffffff');
-  }
-  // Divider between the two halves of a trade-off label.
-  if (lines.length === 2) {
+  // The ICON is the primary read; numbers appear only when the panel is big
+  // enough that they don't crowd the glyph (small phones fall back to icon-only
+  // — the HUD legend always carries the exact text).
+  const roomy = h >= 34;
+
+  if (kind === 'mixed') {
+    // upper half = gain (▲ + glyph [+ number]), lower half = loss
+    const gS = Math.max(9, h * (roomy ? 0.26 : 0.32)) * (1 + flash * 0.08);
+    const rows = [
+      { icon: up.iconGain, vt: up.vtextGain, tint: MIXED_UP, dir: -1, y: centerY - plH * 0.26 },
+      { icon: up.iconLoss, vt: up.vtextLoss, tint: MIXED_DOWN, dir: 1, y: centerY + plH * 0.28 },
+    ];
+    for (const r of rows) {
+      ctx.fillStyle = r.tint;
+      const showN = roomy && r.vt;
+      const ox = showN ? -gS * 0.3 : 0;
+      arrowBadge(ctx, cx + ox - gS * 1.2, r.y, gS * 0.7, r.dir);
+      if (detail) drawIcon(ctx, r.icon, cx + ox + gS * 0.35, r.y, gS, r.tint);
+      if (showN) numberLabel(ctx, r.vt(v), cx + gS * 1.5, r.y, Math.min(gS * 0.85, h * 0.22), r.tint, maxW * 0.35);
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillRect(cx - maxW * 0.28, top + lh - fitted * 0.18, maxW * 0.56, Math.max(1, 1.2 * k));
+    ctx.fillRect(cx - plW * 0.32, centerY, plW * 0.64, Math.max(1, 1.2 * k));
+  } else {
+    const iS = Math.max(10, h * (roomy ? 0.42 : 0.52)) * (1 + flash * 0.1);
+    const vt = up.vtext ? up.vtext(v) : null;
+    if (!detail) {
+      // horizon LOD: number only (the panel color carries the good/bad read)
+      if (vt) numberLabel(ctx, vt, cx, centerY, Math.max(MIN_LABEL_PX + 1, iS * 0.8), '#ffffff', maxW);
+    } else if (vt && roomy) {
+      // centered [glyph][number] group — number capped so it never dominates
+      const numSize = Math.min(Math.max(11, iS * 0.72), h * 0.36);
+      ctx.font = `900 ${numSize}px sans-serif`;
+      const nw = Math.min(ctx.measureText(vt).width, maxW * 0.55);
+      const gap = iS * 0.3;
+      const total = iS + gap + nw;
+      const ix = cx - total / 2 + iS / 2;
+      drawIcon(ctx, up.icon, ix, centerY, iS, '#ffffff');
+      numberLabel(ctx, vt, ix + iS / 2 + gap + nw / 2, centerY, numSize, '#ffffff', maxW * 0.55);
+    } else {
+      // cramped panel: the glyph alone, drawn big
+      drawIcon(ctx, up.icon, cx, centerY, iS * 1.1, '#ffffff');
+    }
+    // bad slots keep their warning symbols flanking the group (when they fit)
+    if (kind === 'bad' && detail && roomy) {
+      const ws = Math.max(9, iS * 0.55);
+      ctx.font = `900 ${ws}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = accent;
+      ctx.fillText('⚠', cx - plW * 0.38, centerY + ws * 0.36);
+      ctx.fillText('⚠', cx + plW * 0.38, centerY + ws * 0.36);
+    }
   }
 
-  // --- shoot-me marker (chargeable slots only) -----------------------------
+  // --- shoot-me marker (chargeable slots only): symbol, not words ------------
   if (slot.chargeable) {
-    const fs2 = Math.max(9, fitted * 0.46);
+    const fs2 = Math.min(Math.max(8, h * 0.17), 20);
     ctx.font = `700 ${fs2}px sans-serif`;
+    ctx.textAlign = 'center';
     ctx.lineWidth = Math.max(1.5, fs2 * 0.22);
     ctx.strokeStyle = 'rgba(5,7,16,0.9)';
-    const tag = maxed ? 'MAX' : '⌖ SHOOT ME';
-    const ty = y1 - h * 0.12;
+    const tag = maxed ? '★' : '⌖';
+    const ty = y1 - h * 0.1;
     ctx.strokeText(tag, cx, ty);
-    ctx.fillStyle = maxed ? accent : '#ffd166';
+    // pulse the crosshair so it reads as "interact with me"
+    ctx.fillStyle = maxed ? accent : `rgba(255,209,102,${0.7 + 0.3 * Math.sin(game.time * 6)})`;
     ctx.fillText(tag, cx, ty);
   }
 

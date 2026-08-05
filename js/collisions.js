@@ -6,7 +6,7 @@ import { killEnemy, enemyContact, interceptShot } from './enemies.js';
 import { damageObstacle, obstacleContact } from './obstacles.js';
 import { gateOnShot, applyGateSlot } from './gates.js';
 import { collectPickup } from './pickups.js';
-import { damagePlayer } from './player.js';
+import { damagePlayer, damageAlly } from './player.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
 
@@ -125,19 +125,40 @@ export function resolveCollisions(game, dt) {
     }
   }
 
-  // ---- enemy shots vs player ------------------------------------------------
+  // ---- enemy shots vs player and allies --------------------------------------
+  // Orbiting allies soak shots that pass through their circle: squad is armor.
   for (const s of game.enemyShots) {
     if (s.dead) continue;
     if (circleHit(s, player)) {
       s.dead = true;
       damagePlayer(game, s.damage);
+      continue;
+    }
+    for (const a of player.allies) {
+      if (a.dead) continue;
+      if (circleHit(s, a)) {
+        s.dead = true;
+        damageAlly(game, a, s.damage);
+        break;
+      }
     }
   }
 
-  // ---- enemies vs player ----------------------------------------------------
+  // ---- enemies vs player and allies ------------------------------------------
   for (const e of game.enemies) {
     if (e.dead) continue;
-    if (circleHit(e, player)) enemyContact(game, e);
+    if (circleHit(e, player)) { enemyContact(game, e); continue; }
+    for (const a of player.allies) {
+      if (a.dead) continue;
+      if (circleHit(e, a)) {
+        damageAlly(game, a, e.damage);
+        if (!e.isBoss) {
+          e.dead = true;
+          fx.explosion(e.x, e.z, e.radius, e.color);
+        }
+        break;
+      }
+    }
   }
 
   // ---- obstacles vs player --------------------------------------------------

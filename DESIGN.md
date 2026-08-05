@@ -54,6 +54,11 @@ stats = { damage:10, fireInterval:0.32, projectiles:1, spreadDeg:7, pierce:0,
 Caps live in `config.js` (`CAPS`) and are enforced in `clampStats()` — upgrades may exceed
 temporarily but clamp keeps the game stable (squad ≤ 8, projectiles ≤ 6, fireInterval ≥ 0.07).
 
+`stats.squad` is mirrored by `player.allies[]` (synced each frame in player.js): persistent
+orbiting escort ships with own hp/invuln/flash state (`ALLY` tuning block). collisions.js
+routes enemy contact + enemy shots to `damageAlly()`; ally death shrinks `stats.squad`.
+`healPlayer()` overflow repairs the most damaged ally.
+
 ## Enemy format (enemies.js, data-driven)
 ```js
 ENEMY_TYPES.grunt = { hp, speed, damage, radius, score, color, behavior:'rush', ... }
@@ -64,9 +69,14 @@ Enemy ranged attacks push into `game.enemyShots` via `fireEnemyShot(game, x, z, 
 
 ## Upgrade / gate format (gates.js, data-driven)
 ```js
-UPGRADES.key = { kind:'good'|'bad'|'mixed', label(v), color?, base?, chargeable?, chargeStep?, max?,
-                 apply(game, value) }
+UPGRADES.key = { kind:'good'|'bad'|'mixed', label(v), icon, vtext(v)?, color?, base?,
+                 chargeable?, chargeStep?, max?, apply(game, value) }
+// mixed entries use iconGain/vtextGain + iconLoss/vtextLoss instead of icon/vtext
 ```
+Panels render icon glyphs + numbers only (ICONS map in gates.js); `label(v)` strings feed the
+HUD gate legend (ui.js), the upgrade toast, and the end screens. Level gate segments may give
+each slot an ARRAY of keys = a per-run random pool (resolved in level.js, ±30% value variance
+on numeric upgrades via VARIED_VALUE).
 Gates spawn as rows of 1–2 slots. Chargeable slots gain value when shot (`gateOnShot`). Slot shows
 live label + color by kind. Crossing applies exactly one slot, marks the row used, fires fx/toast.
 

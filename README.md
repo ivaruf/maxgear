@@ -117,6 +117,16 @@ js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative mu
 All upgrades compose and are clamped (max 6 shots/volley, 8 allies, ~14 volleys/s, etc.),
 so no combination destabilizes the game.
 
+**Allies** (`+N ALLY` gates) are real escort ships: they orbit close around you, fire your
+full volley, and have their own 60 HP — they soak enemy contact and shots like armor, flash
+a brief health bar only when hit, and die when spent. Heal pickups repair your most damaged
+ally whenever you're already at full health.
+
+Gate panels show **icon glyphs + numbers** (no words in the game field); the plain-text
+meaning of the approaching gate appears in a legend at the bottom of the HUD. Most gate
+rows draw their options from **random pools** — strong upgrades compete against each other
+(e.g. +shots vs +allies) — and numeric values roll ±30%, so every run offers different builds.
+
 ## Obstacles & pickups
 
 Crates (loot piñatas) · wide barriers (shoot through or steer around, drop double loot) ·

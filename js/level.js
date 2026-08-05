@@ -5,7 +5,9 @@
 //
 // Segment types: wave | gates | obstacles | pickup | boss
 //   wave      { entries: [{ type, count?, pattern?, stagger?, xOffset?, opts? }] }
-//   gates     { defs: [{ key, value? }] }               1-2 slots (gates.js)
+//   gates     { defs: [slot, slot?] } — each slot is {key, value?} (fixed) or an
+//              ARRAY of keys: a random pool the director picks from per run.
+//              Numeric upgrades also get +-30% value variance (see VARIED_VALUE).
 //   obstacles { layout: [{ type, x, dz?, opts? }], repeat?: { times, dz } }
 //   pickup    { items:  [{ kind, x, dz? }],        repeat?: { times, dz } }
 //   boss      {}                                        sets game.pendingBossAt
@@ -16,11 +18,37 @@
 //   with deliberately quiet stretches after each difficulty spike.
 
 import { ROAD_HALF, SPAWN_AHEAD } from './config.js';
-import { clamp, rand } from './utils.js';
+import { clamp, rand, choice } from './utils.js';
 import { spawnEnemy } from './enemies.js';
-import { spawnGateRow } from './gates.js';
+import { spawnGateRow, UPGRADES } from './gates.js';
 import { spawnObstacle } from './obstacles.js';
 import { spawnPickup } from './pickups.js';
+
+// Upgrades whose value rolls +-30% around base when spawned via the director.
+// Structural counts (multishot/squad/pierce/ricochet/explosive/trades) stay fixed.
+const VARIED_VALUE = new Set([
+  'damage', 'fireRate', 'heal', 'maxHp', 'hurt', 'loseDamage', 'loseFireRate',
+  'crit', 'moveSpeed', 'magnet',
+]);
+
+// Resolve a gate segment's defs: arrays are random pools (per-run variety);
+// the second slot never duplicates the first slot's pick.
+function resolveGateDefs(defs) {
+  const taken = new Set();
+  return defs.map((d) => {
+    if (typeof d === 'object' && !Array.isArray(d)) return d; // explicit {key, value}
+    const pool = Array.isArray(d) ? d : [d];
+    const open = pool.filter((k) => !taken.has(k));
+    const key = choice(open.length ? open : pool);
+    taken.add(key);
+    const out = { key };
+    const up = UPGRADES[key];
+    if (up && VARIED_VALUE.has(key)) {
+      out.value = Math.max(1, Math.round(up.base * rand(0.7, 1.3)));
+    }
+    return out;
+  });
+}
 
 // ---- run tuning (named so the lead can retune without reading the timeline) --
 export const BOSS_AT = 45000;      // 45000 / 250 u/s = 180 s of pre-boss travel
@@ -96,7 +124,7 @@ const TIMELINE = [
   ] },
   { at: 5950, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'gem', x: 50 }] },
   // G3 — first real dilemma: two good options, no safe default.
-  { at: 6400, type: 'gates', defs: [{ key: 'damage' }, { key: 'multishot' }] },
+  { at: 6400, type: 'gates', defs: [['multishot', 'damage'], ['squad', 'fireRate']] },
 
   // == ZONE 2B — SHOOTER (6400-10200 | 26-41 s) ============================
   { at: 6900, type: 'wave', entries: [{ type: 'shooter', count: 2, pattern: 'line', stagger: 0 }] },   // showcase
@@ -122,7 +150,7 @@ const TIMELINE = [
     { type: 'shooter', count: 2, pattern: 'right', stagger: 90 },
   ] },
   // G4 — good/bad. The bad slot sits on the RIGHT, punishing autopilot.
-  { at: 10200, type: 'gates', defs: [{ key: 'pierce' }, { key: 'hurt' }] },
+  { at: 10200, type: 'gates', defs: [['pierce', 'crit', 'moveSpeed'], ['hurt']] },
 
   // == ZONE 2C — SPLITTER (10200-14000 | 41-56 s) ==========================
   { at: 10700, type: 'wave', entries: [{ type: 'splitter', count: 2, pattern: 'center', stagger: 140 }] }, // showcase
@@ -144,7 +172,7 @@ const TIMELINE = [
     { type: 'grunt', count: 3, pattern: 'line', stagger: 60 },
   ] },
   // G5 — good/good power spike right before the first tank.
-  { at: 14000, type: 'gates', defs: [{ key: 'squad' }, { key: 'explosive' }] },
+  { at: 14000, type: 'gates', defs: [['squad', 'multishot'], ['explosive', 'damage']] },
 
   // == ZONE 2D — TANK (14000-17800 | 56-71 s) ==============================
   { at: 14450, type: 'wave', entries: [{ type: 'tank', count: 1, pattern: 'center' }] },                 // showcase
@@ -167,7 +195,7 @@ const TIMELINE = [
   ] },
   { at: 17450, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
   // G6 — mixed: raw crit vs a spray-and-pray trade-off.
-  { at: 17800, type: 'gates', defs: [{ key: 'crit' }, { key: 'tradeSprayPray' }] },
+  { at: 17800, type: 'gates', defs: [['crit', 'fireRate', 'ricochet'], ['tradeSprayPray', 'magnet']] },
 
   // == ZONE 2E — CHARGER (17800-21600 | 71-86 s) ===========================
   { at: 18250, type: 'wave', entries: [{ type: 'charger', count: 2, pattern: 'center', stagger: 170 }] }, // showcase
@@ -187,7 +215,7 @@ const TIMELINE = [
   { at: 21050, type: 'obstacles', layout: [{ type: 'spikes', x: -150 }, { type: 'spikes', x: -50 }, { type: 'spikes', x: 50 }] },
   { at: 21200, type: 'pickup', items: [{ kind: 'gem', x: 150 }] },
   // G7 — utility row: dodge better vs loot better.
-  { at: 21600, type: 'gates', defs: [{ key: 'moveSpeed' }, { key: 'magnet' }] },
+  { at: 21600, type: 'gates', defs: [['moveSpeed', 'magnet', 'spread'], ['damage', 'crit']] },
 
   // == ZONE 2F — SHIELD (21600-24400 | 86-98 s) ============================
   { at: 22050, type: 'wave', entries: [{ type: 'shield', count: 2, pattern: 'line', stagger: 0 }] },     // showcase
@@ -206,7 +234,7 @@ const TIMELINE = [
     { type: 'crate', x: -150 }, { type: 'crate', x: -50 }, { type: 'crate', x: 50 }, { type: 'crate', x: 150 },
   ] },
   // G8 — good/bad with the BAD slot on the LEFT this time (bait flipped).
-  { at: 24400, type: 'gates', defs: [{ key: 'loseFireRate' }, { key: 'multishot' }] },
+  { at: 24400, type: 'gates', defs: [['loseFireRate'], ['multishot', 'squad']] },
 
   // == ZONE 3 — MIDPOINT SET-PIECE (24850-26900 | 55-60%) ==================
   // A concrete line across x -200..130 with an elite tank + escort walking out
@@ -223,7 +251,7 @@ const TIMELINE = [
   { at: 25850, type: 'wave', entries: [{ type: 'charger', count: 2, pattern: 'pincer', stagger: 0 }] },
   { at: 26150, type: 'pickup', items: [{ kind: 'heal', x: -60 }, { kind: 'shieldToken', x: 0 }, { kind: 'heal', x: 60 }] },
   // G9 — recovery row, deliberately tight after the set-piece.
-  { at: 26400, type: 'gates', defs: [{ key: 'heal' }, { key: 'maxHp' }] },
+  { at: 26400, type: 'gates', defs: [['heal', 'maxHp'], ['maxHp', 'squad']] },
   { at: 26800, type: 'pickup', items: [{ kind: 'gem', x: 0 }], repeat: { times: 4, dz: 90 } },
 
   // == ZONE 4 — LATE GAME (27000-41200 | 108-165 s) ========================
@@ -244,7 +272,7 @@ const TIMELINE = [
     { type: 'shield', count: 1, pattern: 'center' },
   ] },
   // G10 — the risk row: all-in glass cannon vs a straight heal.
-  { at: 30200, type: 'gates', defs: [{ key: 'tradeGlassCannon' }, { key: 'heal' }] },
+  { at: 30200, type: 'gates', defs: [['tradeGlassCannon', 'tradeSprayPray'], ['heal', 'maxHp']] },
   { at: 30700, type: 'wave', entries: [{ type: 'mini', count: 10, pattern: 'columns', stagger: 40 }] },  // swarm
   { at: 31350, type: 'obstacles', repeat: { times: 2, dz: 430 }, layout: [
     { type: 'spikes', x: -160 }, { type: 'spikes', x: -60 },
@@ -259,7 +287,7 @@ const TIMELINE = [
   { at: 32900, type: 'wave', entries: [{ type: 'runner', count: 5, pattern: 'pincer', stagger: 0, opts: { elite: true } }] },
   { at: 33450, type: 'wave', entries: [{ type: 'splitter', count: 4, pattern: 'vee', stagger: 80 }] },
   // G11 — good/bad, bad slot back on the right.
-  { at: 34000, type: 'gates', defs: [{ key: 'ricochet' }, { key: 'loseDamage' }] },
+  { at: 34000, type: 'gates', defs: [['ricochet', 'pierce', 'explosive'], ['loseDamage']] },
   { at: 34500, type: 'obstacles', layout: [
     { type: 'barrier', x: -145 }, { type: 'barrier', x: -35 }, { type: 'mine', x: 130 },
   ] },
@@ -276,7 +304,7 @@ const TIMELINE = [
   { at: 36800, type: 'wave', entries: [{ type: 'mini', count: 12, pattern: 'random', stagger: 30 }] },   // big swarm
   { at: 37350, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
   // G12 — mixed: risky blast build vs safe coverage.
-  { at: 37800, type: 'gates', defs: [{ key: 'tradeBlastRisk' }, { key: 'spread' }] },
+  { at: 37800, type: 'gates', defs: [['tradeBlastRisk', 'explosive'], ['spread', 'fireRate', 'crit']] },
   // Dense minefield, only the right shoulder is clean.
   { at: 38250, type: 'obstacles', repeat: { times: 4, dz: 210 }, layout: [
     { type: 'mine', x: -140 }, { type: 'mine', x: -40 }, { type: 'mine', x: 60 },
@@ -297,7 +325,7 @@ const TIMELINE = [
   ] },
   { at: 41000, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'heal', x: 50 }] },
   // G13 — hard good/good: more damage or more bodies.
-  { at: 41200, type: 'gates', defs: [{ key: 'damage' }, { key: 'squad' }] },
+  { at: 41200, type: 'gates', defs: [['damage', 'multishot'], ['squad', 'fireRate']] },
 
   // == ZONE 5 — PRE-BOSS CALM (41800-44400 | 167-178 s) ====================
   // Deliberately quiet: loot, top up HP, take one last big decision.
@@ -308,7 +336,7 @@ const TIMELINE = [
   { at: 42500, type: 'wave', entries: [{ type: 'grunt', count: 3, pattern: 'line', stagger: 80 }] },
   { at: 43000, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'heal', x: 50 }] },
   // G14 — final call: go all-in for boss DPS or buy survivability.
-  { at: 43400, type: 'gates', defs: [{ key: 'tradeGlassCannon' }, { key: 'maxHp' }] },
+  { at: 43400, type: 'gates', defs: [['tradeGlassCannon', 'damage'], ['maxHp', 'heal']] },
   { at: 43800, type: 'pickup', items: [{ kind: 'heal', x: -60 }, { kind: 'heal', x: 60 }] },
   { at: 44250, type: 'pickup', items: [{ kind: 'gem', x: -70 }, { kind: 'gem', x: 0 }, { kind: 'gem', x: 70 }] },
   // Last 150 units before the run halts at BOSS_AT - 250: a shieldToken is 3 s
@@ -366,7 +394,7 @@ export function updateLevel(game, dt) {
         spawnWave(game, z, seg.entries);
         break;
       case 'gates':
-        spawnGateRow(game, z, seg.defs);
+        spawnGateRow(game, z, resolveGateDefs(seg.defs));
         break;
       case 'obstacles':
         for (let r = 0; r < reps; r++) {

@@ -30,6 +30,7 @@ let prevScore = 0;
 let scoreFlip = false;
 let prevAct = null;
 let prevStrip = '';
+let prevLegend = '';
 
 function esc(v) {
   return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -97,6 +98,7 @@ export const ui = {
       score: $('score'),
       actLabel: $('act-label'),
       bossWrap: $('boss-wrap'), bossBar: $('boss-bar'), bossName: $('boss-name'),
+      gateLegend: $('gate-legend'), glLeft: $('gl-left'), glRight: $('gl-right'),
       toast: $('upgrade-toast'),
       statsStrip: $('stats-strip'),
       screens: {
@@ -217,6 +219,34 @@ export const ui = {
     els.progressBar.style.width = `${prog}%`;
     els.progressMarker.style.left = `${prog}%`;
     els.progressGoal.classList.toggle('near', prog > 88);
+
+    // --- Approaching-gate legend: text for the icon-only panels in the field ---
+    let gate = null;
+    for (const g of game.gates) {
+      if (!g.used && !g.dead && g.z > p.z && g.z - p.z < 1200 && (!gate || g.z < gate.z)) gate = g;
+    }
+    if (gate) {
+      const slots = gate.slots.length > 1
+        ? [...gate.slots].sort((a, b) => a.x - b.x)
+        : gate.slots;
+      const key = slots.map((s) => s.up.label(Math.round(s.value)) + s.up.kind).join('|');
+      if (key !== prevLegend) {
+        prevLegend = key;
+        const spans = [els.glLeft, els.glRight];
+        for (let i = 0; i < 2; i++) {
+          const s = slots[i];
+          const el = spans[i];
+          if (!s) { el.classList.add('hidden'); continue; }
+          el.classList.remove('hidden');
+          el.textContent = (s.chargeable ? '⌖ SHOOT: ' : '') + s.up.label(Math.round(s.value));
+          el.className = s.up.kind; // good | bad | mixed (colors from CSS)
+        }
+      }
+      els.gateLegend.classList.remove('hidden');
+    } else if (prevLegend !== '') {
+      prevLegend = '';
+      els.gateLegend.classList.add('hidden');
+    }
 
     // --- Act / wave label (optional: game.level.actLabel may be undefined) ---
     const act = game.level && game.level.actLabel;
