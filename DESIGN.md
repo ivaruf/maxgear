@@ -87,6 +87,15 @@ Timeline of segments keyed by distance: `{ at: 900, type:'wave'|'gates'|'obstacl
 Director spawns a segment when `player.z + SPAWN_AHEAD >= at`. Boss segment sets `runSpeed = 0`
 and arena mode; victory = boss dead. Progress = `player.z / bossAt`.
 
+v1.3 per-run randomness (knobs = exported consts at the top of level.js): wave-count
+density roll, segment z-jitter (tutorial + boss fixed), same-tier enemy substitution
+respecting UNLOCKS (`fixed: true` wave entries never substitute), random ambush waves,
+and gate mods — narrow rows (×0.62 width), THIRD slots (gate rows are 1-3 slots;
+`spawnGateRow(game, z, defs, opts {narrow, offCenter})`), off-center singles.
+Crate loot = weighted CRATE_LOOT table in obstacles.js (heal/gem/shieldToken/overdrive/
+steamburst/gearbox); crates accept per-instance {dropChance, loot} overrides; most loot
+lives IN crates, few open pickups remain (QA safety heals + pre-boss recovery).
+
 ## FX / audio API (call sites already wired — implement, don't rename)
 `fx.hitSpark(x,z,color)`, `fx.explosion(x,z,radius,color)`, `fx.muzzle(x,z,dirX?,dirZ?)`, `fx.textPop(x,z,text,color)`,
 `fx.gateBurst(x,z,color)`, `fx.bossIntro(dur?)`, `fx.arc(x1,z1,x2,z2,color,w?,life?)`,

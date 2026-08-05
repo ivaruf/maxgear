@@ -87,6 +87,7 @@ export function createPlayer() {
     styleFrom: {},              // last weapon-stat snapshot the style was built from
     fireTimer: 0,
     invuln: 0,
+    overdriveT: 0,   // OVERDRIVE pickup: s of 1.67x fire rate left
     hurtFlash: 0,
     dead: false,
   };
@@ -234,9 +235,12 @@ export function updatePlayer(game, dt, input) {
 
   // Auto-fire: player + every living ally fires the full volley, then the
   // broadside ring (same timer, so ROF upgrades feed it too)
+  // OVERDRIVE pickup: temporary fire-rate surge. A timer, NOT a stat write —
+  // recomputeStats() would erase a stat mutation (see DESIGN.md derived stats).
+  p.overdriveT = Math.max(0, (p.overdriveT || 0) - dt);
   p.fireTimer -= dt;
   if (p.fireTimer <= 0) {
-    p.fireTimer = p.stats.fireInterval;
+    p.fireTimer = p.stats.fireInterval * (p.overdriveT > 0 ? 0.6 : 1);
     fireVolley(game, p.x, p.z + 20, p.stats);
     for (const a of p.allies) fireVolley(game, a.x, a.z + 14, p.stats);
     if (p.stats.auxLv > 0) fireAux(game, p.x, p.z, p.stats);

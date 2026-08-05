@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.2.1'; // power-up chips moved to a left-edge rail (mobile decluttering)
+const VERSION = 'v1.3.0'; // run randomness: enemy variety/ambushes, crate jackpots, narrow/triple gates
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

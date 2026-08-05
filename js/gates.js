@@ -4,8 +4,13 @@
 // in upgrades.js; this file owns geometry, charging, the apply hand-off and the
 // drawing. It contains NO upgrade tables and NO stat maths.
 //
-// A gate row = 1-2 slots at the same z. Crossing a slot applies its upgrade and
+// A gate row = 1-3 slots at the same z. Crossing a slot applies its upgrade and
 // consumes the row. Shooting a slot CHARGES it: 14 hits = +1 level.
+//
+// v1.3 GEOMETRY VARIETY: the row shape is a level.js knob now —
+// spawnGateRow(game, z, defs, opts) with opts = { narrow?, offCenter? }. Only
+// the band maths below changed; charging / defusing / preview / apply are
+// untouched and every band is still a symmetric { x, halfW } pair.
 //
 // ---------------------------------------------------------------------------
 // SLOT CONTRACT (level.js emits {key, levels, levelCap} -> spawnGateRow)
@@ -75,28 +80,85 @@ const RESOLVE_LOCK = 700;             // closer than this, the key is committed
 const HOST = Object.freeze({ healPlayer, damagePlayer });
 
 // ---- slot geometry ----------------------------------------------------------
-// Two slots cover the road halves with a dead gap around x = 0 so the player can
-// deliberately thread the middle and take neither. collisions.js widens the test
-// band by player.radius * 0.5 (= 8), so the *effective* bands are
-// [-202, -10] and [+10, +202]: full road coverage outward, 20u of dead centre.
-const SLOT_TWO_HALF_W = ROAD_HALF * 0.44;   // 88
-const SLOT_TWO_CENTER = ROAD_HALF * 0.53;   // +/-106
-const SLOT_ONE_HALF_W = ROAD_HALF * 0.85;   // 170: single gates (tutorial charge
-// gates) are near-unmissable — QA showed accidentally dodging them makes the
-// first-third difficulty spike unfair
+// A band is the symmetric pair { x, halfW }. collisions.js widens EVERY band by
+// player.radius * 0.5 (= 8) on BOTH sides, so a dead gap between two slots loses
+// 16u, not 8. The tables below give raw and *effective* (widened) bands, because
+// the effective ones are what the player feels. player.js clamps x to +/-184
+// (ROAD_HALF - player.radius), so anything past +/-184 is unreachable road.
+//
+//  ROW SHAPE          RAW BANDS                          EFFECTIVE (+/-8)
+//  1 slot             [-170, +170]                       [-178, +178]
+//    near-unmissable — QA showed accidentally dodging a tutorial charge gate
+//    makes the first-third difficulty spike unfair (6u of wall-hug at each edge).
+//  2 slots            [-194,-18] [+18,+194]              [-202,-10] [+10,+202]
+//    full coverage outward, 20u of dead centre you can deliberately thread.
+//  3 slots (v1.3)     [-182,-74] [-54,+54] [+74,+182]    [-190,-66] [-62,+62] [+66,+190]
+//    20u raw gaps collapse to 4u effective: threading is a needle you cannot
+//    aim for, so a 3-slot row is a CHOICE of three, not a dodge. (halfW 0.29 of
+//    ROAD_HALF would leave the widened bands OVERLAPPING by 4u and break the
+//    "exactly one slot per row" invariant applyGateSlot() relies on.)
+//
+//  NARROW (opts.narrow) — same centres, every halfW * 0.62. More dodge room,
+//  harder to line up: a skill knob, not a difficulty knob.
+//  1 narrow           [-105.4, +105.4]                   [-113.4, +113.4]
+//  2 narrow           [-160.6,-51.4] [+51.4,+160.6]      [-168.6,-43.4] [+43.4,+168.6]
+//  3 narrow           [-161.5,-94.5] [-33.5,+33.5] [+94.5,+161.5]
+//                     eff [-169.5,-86.5] [-41.5,+41.5] [+86.5,+169.5]  (45u gaps)
+//
+//  OFF-CENTRE (opts.offCenter = -1 | +1, SINGLE slots only) — centre +/-84, so
+//  the whole dodge lane is on one side. halfW is clamped by SLOT_EDGE_LIMIT: a
+//  170 half-width at x = 84 would plant the brass frame and its asphalt line 54u
+//  into the scenery (the roadside posts live at x = 224), so it becomes 113.
+//  1 off-centre +1    [-29, +197]                        [-37, +205]  (147u lane left)
+//  1 off-centre +1 narrow  [-21.4, +189.4]               [-29.4, +197.4]
+const SLOT_TWO_HALF_W = ROAD_HALF * 0.44;    // 88
+const SLOT_TWO_CENTER = ROAD_HALF * 0.53;    // +/-106
+const SLOT_ONE_HALF_W = ROAD_HALF * 0.85;    // 170
+const SLOT_THREE_HALF_W = ROAD_HALF * 0.27;  // 54
+const SLOT_THREE_CENTER = ROAD_HALF * 0.64;  // +/-128
+const NARROW_MUL = 0.62;                     // opts.narrow
+const OFF_CENTER_X = ROAD_HALF * 0.42;       // +/-84, single slots only
+// Outermost a band edge may sit: half a post (GATE_POST / 2 = 3, declared with
+// the drawing constants below) inside the road edge, so no frame leaves the
+// asphalt. Only ever bites an off-centre single.
+const SLOT_EDGE_LIMIT = ROAD_HALF - 3;       // 197
+const MAX_SLOTS = 3;                         // what fits the road, one row deep
+
+// Centres left-to-right for a row of n slots. offCenter only shifts a single
+// slot: shoving a 2/3-slot row sideways would push a band off the road.
+function slotCenters(n, offCenter) {
+  if (n >= 3) return [-SLOT_THREE_CENTER, 0, SLOT_THREE_CENTER];
+  if (n === 2) return [-SLOT_TWO_CENTER, SLOT_TWO_CENTER];
+  return [offCenter ? Math.sign(offCenter) * OFF_CENTER_X : 0];
+}
+
+function slotHalfW(n, narrow) {
+  const base = n >= 3 ? SLOT_THREE_HALF_W : n === 2 ? SLOT_TWO_HALF_W : SLOT_ONE_HALF_W;
+  return narrow ? base * NARROW_MUL : base;
+}
 
 // A bad slot charged all the way to its cap (0) is harmless.
 export const isDefused = (slot) => slot.up.kind === 'bad' && slot.levels === 0;
 
-// Spawn a row of gate slots. defs: [{ key, levels, levelCap }] length 1-2,
-// straight out of level.js resolveGateDefs().
-export function spawnGateRow(game, z, defs) {
+// Spawn a row of gate slots. defs: [{ key, levels, levelCap }] length 1-3,
+// straight out of level.js resolveGateDefs(). opts (also level.js):
+//   narrow      true  -> every halfW * 0.62 (same centres)
+//   offCenter   -1|+1 -> a SINGLE slot leans to that side of the road
+// An unknown key drops its slot but never shifts the others: the centre comes
+// from the def's index, not from the surviving slot count.
+export function spawnGateRow(game, z, defs, opts = {}) {
+  if (defs.length > MAX_SLOTS) {
+    console.error(`Gate row of ${defs.length} slots: only ${MAX_SLOTS} fit the road`);
+    defs = defs.slice(0, MAX_SLOTS);
+  }
   const n = defs.length;
+  const centers = slotCenters(n, opts.offCenter);
+  const rowHalfW = slotHalfW(n, opts.narrow);
   const slots = defs.map((d, i) => {
     const up = ENTRIES[d.key];
     if (!up) { console.error(`Unknown upgrade: ${d.key}`); return null; }
-    const halfW = n === 1 ? SLOT_ONE_HALF_W : SLOT_TWO_HALF_W;
-    const x = n === 1 ? 0 : (i === 0 ? -SLOT_TWO_CENTER : SLOT_TWO_CENTER);
+    const x = centers[i];
+    const halfW = Math.min(rowHalfW, SLOT_EDGE_LIMIT - Math.abs(x));
     const levels = Math.round(d.levels ?? 1);
     const levelCap = Math.round(d.levelCap ?? levels);
     const slot = {
@@ -700,6 +762,14 @@ function drawSlot(ctx, view, game, gate, slot) {
   // enough that they don't crowd the glyph (small phones fall back to icon +
   // pips — the HUD legend always carries the exact text).
   const roomy = h >= 34;
+  // v1.3: numerals need WIDTH as well as height. Every size in this block is
+  // derived from h, so a panel that is nearly square cannot hold a glyph AND a
+  // numeral beside it: a 3-slot NARROW row is 67 world units wide against 62
+  // tall (aspect 1.08) and the two-row trade group ran ~7px off the glass on
+  // every viewport. Measured over 4 widths x 4 depths: aspect >= 1.35 keeps
+  // >= 8px of clear glass, so that is the gate. Everything else (pairs 2.84,
+  // narrow pairs 1.76, 3-slot 1.74, singles 3.4-5.5) is unaffected.
+  const wideEnough = w >= h * 1.35;
   const from = slot.previewFrom ?? 0;
   const to = slot.previewTo ?? from;
   const previewEntry = ENTRIES[slot.previewKey];
@@ -721,15 +791,19 @@ function drawSlot(ctx, view, game, gate, slot) {
     defusedMark(ctx, cx, centerY, Math.max(10, h * 0.4), DEFUSED_ACCENT);
   } else if (kind === 'mixed') {
     // upper half = gain (▲ + glyph [+ number]), lower half = loss
-    const gS = Math.max(9, h * (roomy ? 0.24 : 0.3)) * (1 + flash * 0.08);
+    // The trade group is the widest thing a panel ever holds (two glyphs, two
+    // arrows, two numerals), so its glyph is capped by the panel WIDTH too.
+    const gS = Math.max(9, Math.min(h * (roomy ? 0.24 : 0.3), w * 0.26)) * (1 + flash * 0.08);
     const lossText = tradeLossText(up);
     const rows = [
       { icon: up.iconGain, text: numText, tint: MIXED_UP, dir: -1, y: centerY - plH * 0.28, lv: from },
       { icon: up.iconLoss, text: lossText, tint: MIXED_DOWN, dir: 1, y: centerY + plH * 0.04, lv: 0 },
     ];
     for (const r of rows) {
-      const showN = roomy && !!r.text;
-      const ox = showN ? -gS * 0.3 : 0;
+      const showN = roomy && wideEnough && !!r.text;
+      // With a numeral the pair sits left of centre to make room for it; without
+      // one, centre the [▲][glyph] pair instead of leaving its slot empty.
+      const ox = showN ? -gS * 0.3 : gS * 0.35;
       drawArrow(ctx, cx + ox - gS * 1.2, r.y, gS * 0.7, r.dir, r.tint);
       if (detail) {
         drawIcon(ctx, r.icon, cx + ox + gS * 0.35, r.y, gS, null,

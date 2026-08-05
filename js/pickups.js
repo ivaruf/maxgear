@@ -1,18 +1,41 @@
-// Pickups (heal orbs, score gems, shield tokens). UPGRADE-AGENT OWNS THIS FILE.
+// Pickups (heal orbs, score gems, shield tokens + the v1.3 crate loot kinds:
+// overdrive, steamburst, gearbox). UPGRADE-AGENT OWNS THIS FILE.
 // Collection is resolved in collisions.js via collectPickup() — single entry point.
+//
+// CIRCULAR IMPORT (deliberate, documented — same precedent as player.js <->
+// enemies.js): enemies.js imports spawnPickup from here, and STEAMBURST needs
+// the central death hook, so we import killEnemy from enemies.js. Neither
+// binding is touched during module EVALUATION (only inside functions), so the
+// cycle is fully resolved before anything can run. Verified in both import
+// orders (pickups-first and enemies-first).
 
 import { DESPAWN_BEHIND } from './config.js';
+import { rand, choice } from './utils.js';
 import { project } from './render.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
 import { healPlayer } from './player.js';
+import { killEnemy } from './enemies.js';        // see CIRCULAR IMPORT above
+import { ENTRIES, TRACK_ORDER, addLevels, recomputeStats, trackLevel } from './upgrades.js';
 
 export const SHIELD_TIME = 3;   // seconds of invulnerability from a shieldToken
+
+// ---- v1.3 pickup tuning -----------------------------------------------------
+export const OVERDRIVE_TIME = 6;        // s of 1.67x fire rate (player.overdriveT)
+export const STEAMBURST_DAMAGE = 60;    // flat damage to every enemy on screen
+export const STEAMBURST_RANGE = 1500;   // "on screen" = z < player.z + this
+export const STEAMBURST_BOSS_FLOOR = 0.1;  // never chips the boss below 10% maxHp
+export const GEARBOX_LEVELS = 1;        // levels granted to a random owned track
 
 export const PICKUP_TYPES = {
   heal: { radius: 14, color: '#56b06c', value: 15 },
   gem: { radius: 12, color: '#ffd166', value: 50 },
   shieldToken: { radius: 14, color: '#35e0ff', value: SHIELD_TIME },
+  // Crate jackpots. `value` is informational for the HUD/end screen; the
+  // effects below read the tuning constants, never pk.value.
+  overdrive: { radius: 14, color: '#ffa63d', value: OVERDRIVE_TIME },
+  steamburst: { radius: 15, color: '#e6e1d7', value: STEAMBURST_DAMAGE },
+  gearbox: { radius: 13, color: '#f0b429', value: GEARBOX_LEVELS },
 };
 
 const MAGNET_PULL = 420;        // world units/sec once inside the magnet radius
@@ -49,8 +72,11 @@ export function updatePickups(game, dt) {
 export function collectPickup(game, pk) {
   if (pk.dead) return;
   pk.dead = true;
-  audio.pickup();
   fx.hitSpark(pk.x, pk.z, pk.color);
+  // The two loud kinds own their own audio (explode / gateGood).
+  if (pk.kind === 'steamburst') { steamburst(game, pk); return; }
+  if (pk.kind === 'gearbox') { gearbox(game, pk); return; }
+  audio.pickup();
   if (pk.kind === 'heal') {
     healPlayer(game, pk.value);
   } else if (pk.kind === 'gem') {
@@ -61,13 +87,106 @@ export function collectPickup(game, pk) {
     game.player.invuln = Math.max(game.player.invuln, secs);
     fx.flash(pk.color, 0.16, 0.3);
     fx.textPop(pk.x, pk.z, 'SHIELD!', pk.color);
+  } else if (pk.kind === 'overdrive') {
+    // player.js: overdriveT > 0 -> fireInterval * 0.6. Refresh, never stack.
+    const p = game.player;
+    p.overdriveT = Math.max(p.overdriveT || 0, OVERDRIVE_TIME);
+    fx.flash('#ffb347', 0.15, 0.3);
+    fx.textPop(pk.x, pk.z, 'OVERDRIVE!', pk.color);
   }
+}
+
+// ---- STEAMBURST -------------------------------------------------------------
+// A ruptured boiler: flat damage to every living enemy on screen. Like a mine
+// blast it hits `hp` directly (a shield plate does not soak it) and routes
+// deaths through killEnemy so score/splits/shrapnel/siphon all still fire.
+//
+// BOSS CLAMP: the boss takes the damage but is never taken below 10% of maxHp —
+// stockpiling steambursts must not be able to skip the last phase. Below the
+// floor the boss is simply skipped (no damage, no "immune" noise).
+const STEAM = '#e6e1d7';
+const DMG_FLOATERS = 8;         // fx budget: only the first few show a number
+
+function steamburst(game, pk) {
+  const p = game.player;
+  const zMax = p.z + STEAMBURST_RANGE;
+  const n = game.enemies.length;      // snapshot: killEnemy can push split minis
+  let shown = 0;
+  for (let i = 0; i < n; i++) {
+    const e = game.enemies[i];
+    if (!e || e.dead || e.z > zMax) continue;
+    if (e.isBoss) {
+      const floor = e.maxHp * STEAMBURST_BOSS_FLOOR;
+      if (e.hp - STEAMBURST_DAMAGE < floor) continue;
+      e.hp -= STEAMBURST_DAMAGE;
+      e.flash = 0.08;
+      fx.textPop(e.x, e.z, `${STEAMBURST_DAMAGE}`, STEAM);
+      continue;                       // a steamburst can never be the killing blow
+    }
+    e.hp -= STEAMBURST_DAMAGE;
+    e.flash = 0.08;
+    if (shown++ < DMG_FLOATERS) fx.textPop(e.x, e.z, `${STEAMBURST_DAMAGE}`, STEAM);
+    if (e.hp <= 0) killEnemy(game, e, 'explosion');
+  }
+  // Big, loud, unmistakable: white flash + hard shake + a wall of steam.
+  fx.flash('#ffffff', 0.3, 0.32);
+  fx.shake(8, 0.4);
+  fx.explosion(pk.x, pk.z, 120, STEAM);
+  for (let i = 0; i < 3; i++) {
+    fx.explosion(pk.x + rand(-140, 140), pk.z + rand(120, 520), rand(70, 110), STEAM);
+  }
+  fx.textPop(p.x, p.z + 60, 'STEAMBURST!', STEAM);
+  audio.explode();
+}
+
+// ---- GEARBOX ---------------------------------------------------------------
+// A free level, no gate required: +1 to a RANDOM track you already own and can
+// still grow. Fallback is a LV0 track (so it is never a dud), and the payout is
+// published on game.lastUpgrade so the ui.js toast + build strip react exactly
+// like a gate award.
+function levelPool(player, test) {
+  const out = [];
+  for (const key of TRACK_ORDER) {
+    const def = ENTRIES[key];
+    if (!def || !def.track) continue;
+    if (test(trackLevel(player, key), def)) out.push(key);
+  }
+  return out;
+}
+
+function gearbox(game, pk) {
+  const p = game.player;
+  // owned + headroom first; otherwise open a new track (plating below LV0 —
+  // rusted — counts as "not owned yet" and is happily repaired here).
+  const owned = levelPool(p, (lv, def) => lv > 0 && lv < def.maxLv);
+  const pool = owned.length ? owned : levelPool(p, (lv, def) => lv <= 0 && lv < def.maxLv);
+  if (!pool.length) {                 // everything maxed: pay out as score
+    game.score += 250;
+    fx.textPop(pk.x, pk.z, '+250', pk.color);
+    audio.pickup();
+    return;
+  }
+  const key = choice(pool);
+  const { from, to } = addLevels(p, key, GEARBOX_LEVELS);
+  recomputeStats(p);                  // stats are DERIVED — never mutate directly
+  const label = `${ENTRIES[key].name} LV${from} → LV${to}`;
+  game.lastUpgrade = { label, kind: 'good', key, from, to };
+  fx.flash(pk.color, 0.16, 0.3);
+  fx.textPop(pk.x, pk.z, label, pk.color);
+  fx.gateBurst?.(pk.x, pk.z, pk.color);
+  fx.hitSpark(pk.x, pk.z, '#fff4cf');
+  audio.gateGood();
 }
 
 // ---- drawing ---------------------------------------------------------------
 // STEAMPUNK: heal = green elixir vial, gem = solid brass cog, shieldToken =
 // aether capacitor in a brass cage. The TYPE COLOURS are gameplay information
 // (glow, hit sparks and floaters all read off pk.color) and keep their hexes.
+// v1.3 kinds keep the same ground glow + bob and get their OWN silhouette so
+// they are told apart at a glance from a low, fast camera:
+//   overdrive  = bolt inside a hollow gear RING + pistons  (amber)
+//   steamburst = wide riveted canister, valve wheel, steam (steam white)
+//   gearbox    = bolted SQUARE case with a turning gear    (bright brass)
 const TAU = Math.PI * 2;
 const BRASS = '#c9973b';
 const BRASS_HI = '#f0b429';
@@ -258,6 +377,199 @@ function shieldCapacitor(ctx, sx, sy, r, color, age) {
   }
 }
 
+// OVERDRIVE: a lightning bolt caged in a spinning brass gear RING, flanked by
+// two little pistons. Silhouette read = hollow ring + bolt (the gem is a SOLID
+// cog, so the two never get confused at speed).
+function overdriveGear(ctx, sx, sy, r, color, age) {
+  const surge = 0.5 + Math.abs(Math.sin(age * 5)) * 0.5;
+  // Pistons on both shoulders (brass, no coloured glow).
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = BRASS_LO;
+  ctx.lineWidth = Math.max(1, r * 0.16);
+  ctx.beginPath();
+  for (const s of [-1, 1]) {
+    ctx.moveTo(sx + s * r * 0.9, sy);
+    ctx.lineTo(sx + s * r * 1.45, sy);
+  }
+  ctx.stroke();
+  ctx.fillStyle = BRASS;
+  for (const s of [-1, 1]) {
+    ctx.fillRect(sx + s * r * 1.45 - r * 0.16, sy - r * 0.34, r * 0.32, r * 0.68);
+  }
+  // Toothed ring (spins on age; glow comes back on for the coloured metal).
+  ctx.shadowColor = color;
+  ctx.shadowBlur = Math.max(4, r * 0.7);
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(age * 1.5);
+  ctx.scale(r, r);
+  ctx.fillStyle = color;
+  cogSilhouette(ctx);
+  ctx.restore();
+  ctx.shadowBlur = 0;
+  // Hollow hub + brass rim.
+  ctx.fillStyle = '#2a1f12';
+  ctx.beginPath();
+  ctx.arc(sx, sy, r * 0.64, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = BRASS_LO;
+  ctx.lineWidth = Math.max(1, r * 0.11);
+  ctx.stroke();
+  // The bolt itself does NOT spin — it is the gameplay read.
+  ctx.beginPath();
+  ctx.moveTo(sx + r * 0.30, sy - r * 0.70);
+  ctx.lineTo(sx - r * 0.32, sy + r * 0.06);
+  ctx.lineTo(sx - r * 0.02, sy + r * 0.06);
+  ctx.lineTo(sx - r * 0.24, sy + r * 0.72);
+  ctx.lineTo(sx + r * 0.36, sy - r * 0.08);
+  ctx.lineTo(sx + r * 0.05, sy - r * 0.08);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.globalAlpha = surge;
+  ctx.fillStyle = '#fff4dd';
+  ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+// STEAMBURST: a squat riveted pressure canister with a brass valve wheel and a
+// pressure dial, venting steam. Silhouette read = wide drum (nothing else in the
+// pickup set is horizontal).
+function steamCanister(ctx, sx, sy, r, color, age) {
+  const w = r * 1.15, h = r * 0.78;
+  // Venting steam, behind the drum.
+  ctx.save();
+  ctx.fillStyle = color;
+  for (let i = 0; i < 3; i++) {
+    const t = ((age * 0.7) + i / 3) % 1;
+    ctx.globalAlpha = (1 - t) * 0.45;
+    ctx.beginPath();
+    ctx.arc(sx + (i - 1) * r * 0.62, sy - h - t * r * 1.6, r * (0.2 + t * 0.45), 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+  // Drum body + dark banding.
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy, w, h, 0, 0, TAU);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = 'rgba(30,22,14,0.55)';
+  ctx.lineWidth = Math.max(1, r * 0.1);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(30,22,14,0.16)';
+  ctx.fillRect(sx - w * 0.62, sy - h * 0.18, w * 1.24, h * 0.36);
+  // Brass end caps + rim rivets.
+  ctx.fillStyle = BRASS;
+  for (const s of [-1, 1]) {
+    ctx.fillRect(sx + s * w * 0.86 - r * 0.14, sy - h * 0.62, r * 0.28, h * 1.24);
+  }
+  ctx.fillStyle = BRASS_HI;
+  ctx.fillRect(sx - w * 0.86 - r * 0.14, sy - h * 0.62, w * 1.72 + r * 0.28, Math.max(0.8, r * 0.08));
+  if (r > 5) {
+    ctx.fillStyle = BRASS_LO;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * TAU + 0.5;
+      ctx.beginPath();
+      ctx.arc(sx + Math.cos(a) * w * 0.68, sy + Math.sin(a) * h * 0.62, Math.max(0.7, r * 0.08), 0, TAU);
+      ctx.fill();
+    }
+  }
+  // Valve wheel on top (turns with age).
+  const vy = sy - h - r * 0.28;
+  ctx.strokeStyle = BRASS;
+  ctx.lineWidth = Math.max(1, r * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(sx, sy - h * 0.6);
+  ctx.lineTo(sx, vy);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(sx, vy, r * 0.3, 0, TAU);
+  ctx.stroke();
+  ctx.beginPath();
+  for (let i = 0; i < 2; i++) {
+    const a = age * 1.4 + i * (Math.PI / 2);
+    ctx.moveTo(sx - Math.cos(a) * r * 0.3, vy - Math.sin(a) * r * 0.3);
+    ctx.lineTo(sx + Math.cos(a) * r * 0.3, vy + Math.sin(a) * r * 0.3);
+  }
+  ctx.stroke();
+  // Pressure dial: needle pinned deep in the red.
+  if (r > 6) {
+    ctx.fillStyle = '#2a241d';
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * 0.34, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = BRASS_HI;
+    ctx.lineWidth = Math.max(1, r * 0.07);
+    ctx.stroke();
+    const na = -Math.PI * 0.75 + (0.6 + Math.abs(Math.sin(age * 3)) * 0.35) * Math.PI * 1.5;
+    ctx.strokeStyle = '#ff5964';
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + Math.cos(na) * r * 0.28, sy + Math.sin(na) * r * 0.28);
+    ctx.stroke();
+  }
+}
+
+// GEARBOX: a bolted brass case with a gear turning on its face, plus sparkles.
+// Silhouette read = SQUARE (the only boxy pickup) — a free level is worth a
+// jackpot glint, so it also gets four rotating star glints.
+function gearboxCase(ctx, sx, sy, r, color, age) {
+  const s = r * 0.92;
+  ctx.fillStyle = color;
+  ctx.fillRect(sx - s, sy - s, s * 2, s * 2);
+  ctx.shadowBlur = 0;
+  // Darker inset face so the gear has something to sit in.
+  ctx.fillStyle = '#3a2c15';
+  ctx.fillRect(sx - s * 0.72, sy - s * 0.72, s * 1.44, s * 1.44);
+  ctx.strokeStyle = 'rgba(40,28,10,0.75)';
+  ctx.lineWidth = Math.max(1, r * 0.1);
+  ctx.strokeRect(sx - s, sy - s, s * 2, s * 2);
+  // Bolted corners.
+  ctx.fillStyle = BRASS_HI;
+  const cs = s * 0.34;
+  for (let i = 0; i < 4; i++) {
+    const lx = i % 2 === 0 ? -1 : 1;
+    const ly = i < 2 ? -1 : 1;
+    ctx.fillRect(sx + lx * s - (lx < 0 ? 0 : cs), sy + ly * s - (ly < 0 ? 0 : cs * 0.34), cs, cs * 0.34);
+    ctx.fillRect(sx + lx * s - (lx < 0 ? 0 : cs * 0.34), sy + ly * s - (ly < 0 ? 0 : cs), cs * 0.34, cs);
+  }
+  // Main gear on the face (+ a small meshed one) — the "free level" motif.
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(age * 1.1);
+  ctx.scale(s * 0.62, s * 0.62);
+  ctx.fillStyle = color;
+  cogSilhouette(ctx);
+  ctx.restore();
+  ctx.save();
+  ctx.translate(sx + s * 0.66, sy + s * 0.58);
+  ctx.rotate(-age * 1.9);
+  ctx.scale(s * 0.3, s * 0.3);
+  ctx.fillStyle = BRASS;
+  cogSilhouette(ctx);
+  ctx.restore();
+  ctx.fillStyle = BRASS_LO;
+  ctx.beginPath();
+  ctx.arc(sx, sy, s * 0.2, 0, TAU);
+  ctx.fill();
+  // Jackpot sparkle: four 4-point glints orbiting the case.
+  ctx.fillStyle = '#fff4cf';
+  for (let i = 0; i < 4; i++) {
+    const a = age * 1.3 + (i / 4) * TAU;
+    const d = s * (1.35 + Math.sin(age * 4 + i) * 0.18);
+    const gx = sx + Math.cos(a) * d, gy = sy + Math.sin(a) * d;
+    const gr = Math.max(0.8, r * (0.1 + 0.06 * Math.abs(Math.sin(age * 5 + i))));
+    ctx.beginPath();
+    ctx.moveTo(gx, gy - gr * 2.2);
+    ctx.lineTo(gx + gr, gy);
+    ctx.lineTo(gx, gy + gr * 2.2);
+    ctx.lineTo(gx - gr, gy);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
 export function drawPickups(ctx, view, game) {
   for (const pk of game.pickups) {
     if (pk.dead) continue;
@@ -282,6 +594,9 @@ export function drawPickups(ctx, view, game) {
     const cy = sy - bob;
     if (pk.kind === 'heal') healVial(ctx, sx, cy, r, pk.color, pk.age);
     else if (pk.kind === 'shieldToken') shieldCapacitor(ctx, sx, cy, r * 1.12, pk.color, pk.age);
+    else if (pk.kind === 'overdrive') overdriveGear(ctx, sx, cy, r * 1.05, pk.color, pk.age);
+    else if (pk.kind === 'steamburst') steamCanister(ctx, sx, cy, r, pk.color, pk.age);
+    else if (pk.kind === 'gearbox') gearboxCase(ctx, sx, cy, r * 1.1, pk.color, pk.age);
     else gemCog(ctx, sx, cy, r * 1.15, pk.age * 2.4, pk.color);
     ctx.restore();
   }

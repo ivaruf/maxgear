@@ -346,6 +346,8 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   pointer-events: none; white-space: nowrap;
   max-width: calc(100vw - 16px);
 }
+/* THREE spans (left/mid/right) = up to three gate slots; ui.js hides the ones a
+   row does not use, so a 1- or 2-slot row looks exactly as it did in v1.2 */
 /* the spans are built by ui.init(): [canvas.gl-ico ×2][b.gl-txt] */
 #gate-legend span {
   padding: 5px 14px; border-radius: 5px;
@@ -375,23 +377,26 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
      starts below the boss-bar zone so the two can never touch */
   #stats-strip { gap: 3px; top: calc(118px + var(--safe-t)); }
   #stats-strip i { font-size: 10px; padding: 2px 5px; border-radius: 5px; gap: 3px; }
-  #stats-strip i:not(.num) em { display: none; }
+  #stats-strip i em { display: none; } /* icons carry the meaning on phones */
 
   /* phones: two slots can't hold a whole label on one line, so the text WRAPS
      (max two lines) instead of ellipsising away the '→ LV5' that matters.
-     The spans keep their left/right order = the two gate panels' order. */
+     The spans keep their left/mid/right order = the gate panels' order.
+     THREE slots get ~112px per chip at 360px, so ui.js also drops that copy to
+     the name alone (copyTier 2) — the CSS side just has to let them shrink. */
   #gate-legend {
-    font-size: 10.5px; gap: 6px; bottom: calc(34px + var(--safe-b));
+    font-size: 10.5px; gap: 4px; bottom: calc(34px + var(--safe-b));
     white-space: normal; align-items: stretch; justify-content: center;
     /* a definite width: an abspos shrink-to-fit box only gets (100vw - left)
        to play with, which would squeeze both spans into half the screen */
     width: calc(100vw - 16px);
   }
   #gate-legend span {
-    padding: 4px 9px; gap: 5px;
-    /* shrink from the one-line width (never below), so two slots wrap instead
-       of ellipsising and a lone slot still hugs its own copy */
-    flex: 0 1 auto; letter-spacing: 0.6px; text-align: left;
+    padding: 4px 7px; gap: 5px;
+    /* shrink from the one-line width, and min-width:0 (base rule) lets three
+       chips go below their min-content width instead of overflowing the
+       viewport — .gl-txt then wraps, and clips with an ellipsis if it must */
+    flex: 0 1 auto; min-width: 0; letter-spacing: 0.6px; text-align: left;
   }
   .gl-ico { width: 14px; height: 14px; }
   .gl-txt { white-space: normal; line-height: 1.22; max-height: 2.5em; }

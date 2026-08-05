@@ -142,8 +142,14 @@ never change.
 
 Crates (loot piñatas) · wide barriers (shoot through or steer around, drop double loot) ·
 spike strips (indestructible — steer!) · mines (shoot them: the blast hurts *enemies*, only
-touching them hurts you; they chain). Pickups: heal cross, score gem, and a 3-second shield
-token — while shielded you're a wrecking ball: ramming enemies kills them for full score.
+touching them hurts you; they chain). Most loot hides in crates now — shoot them open for
+heal vials, score gems, 3s shield tokens (ram enemies for full score while shielded),
+OVERDRIVE (6s fire-rate surge), STEAMBURST (screen-clearing boiler rupture) and the rare
+GEARBOX: a free level for a random track you own.
+
+Runs are randomized: enemy mixes and wave density shift per run, ambush waves strike
+between set-pieces, and gates vary — sometimes narrower, sometimes THREE choices across
+the road.
 
 ## Testing performed
 

@@ -5,11 +5,15 @@
 // v1.2 (level tracks + colored icons):
 //   * the gate legend is now icon + text: ui.init() builds two 16px <canvas>
 //     and one <b class="gl-txt"> inside each legend span (index.html keeps its
-//     two empty spans; we never overwrite them, only their children),
+//     empty spans; we never overwrite them, only their children),
 //   * the stats strip and the end-screen build rows read player.tracks (the
 //     level map) and render 5-pip chips with <img> glyphs baked by icons.js,
 //   * icon bakes are memoized by icons.js; a devicePixelRatio change drops the
 //     cache and re-sizes the legend canvases (ui owns that resize listener).
+// v1.3: gate rows can hold THREE slots, so the legend has three spans
+//   (#gl-left / #gl-mid / #gl-right). Slots arrive sorted by x and map onto the
+//   spans so every chip sits under the panel it describes: 3 -> all three,
+//   2 -> the outer two, 1 -> the middle one. Unused spans are hidden AND reset.
 // Every id/class hook that existed before still works.
 
 import { levelProgress } from './level.js';
@@ -49,8 +53,12 @@ const SHORT = {
 const EMPTY = [];
 
 let dpr = 1;
-// [{ span, cvs:[canvas,canvas], ctxs:[ctx,ctx], txt }] — built in ui.init()
+// [{ span, cvs:[canvas,canvas], ctxs:[ctx,ctx], txt }] — built in ui.init(),
+// in DOM order: left, mid, right.
 let legend = [];
+const GL_SPAN_COUNT = 3;
+// slot index (sorted by x) -> legend span index, by how many slots the row has.
+const SPAN_FOR = { 1: [1], 2: [0, 2], 3: [0, 1, 2] };
 
 // --- toast queue (one visible slot, drained in order, never overlapping text) --
 const toastQueue = [];
@@ -95,12 +103,32 @@ function smallScreen() {
   return Number.isFinite(px) && px > 0 && px <= 380;
 }
 
-// The legend drops to 10.5px / two padded spans at this width (see style.css);
+// The legend drops to 10.5px / padded spans at this width (see style.css);
 // below it a two-slot row has ~24 characters per span, so the copy goes compact.
 function narrowLegend() {
   const w = win();
   const px = w && w.innerWidth;
   return Number.isFinite(px) && px > 0 && px <= 600;
+}
+
+// A THREE-chip legend cannot carry the full copy anywhere near a phone: at 12px
+// display type '⌖ SHOOT: TESLA COIL LV1 → LV3' is ~220px, and a chip adds ~44px
+// of icon + padding, so three of them want ~830px of viewport. Below that the
+// chips would ellipsise away the '→ LV5' that matters, so the copy drops to the
+// NAME only — the destination level is already drawn on the legend glyph.
+const LEGEND_FULL_PX = 860;
+function roomForThree() {
+  const w = win();
+  const px = w && w.innerWidth;
+  return !Number.isFinite(px) || px <= 0 || px > LEGEND_FULL_PX;
+}
+// Copy tier for a row of n slots: 0 = full, 1 = tight (SHORT trade copy),
+// 2 = cram (name only). CSS-independent on purpose: the breakpoint is about how
+// many characters fit, which no media query can express.
+function copyTier(n) {
+  if (n >= 3 && !roomForThree()) return 2;
+  if (n > 1 && narrowLegend()) return 1;
+  return 0;
 }
 
 function nextToast() {
@@ -197,7 +225,11 @@ function trackChip(key, lv, px, full, bumped) {
   return `<i class="${cls.join(' ')}">${chipIcon(def.icon, lv, px)}<em>${esc(label)}</em>${pipsHTML(lv)}</i>`;
 }
 
-const numChip = (k, v, up) => `<i class="num${up ? ' up' : ''}"><em>${esc(k)}</em>${esc(v)}</i>`;
+// Numeric chips carry a glyph too (DMG = shell, ROF = shell-stream…), so the
+// whole rail is iconized; on phones the em label hides and icon+number remain.
+const NUM_ICON = { DMG: 'shell', ROF: 'rof', SHOTS: 'fan', HULL: 'plate' };
+const numChip = (k, v, up) =>
+  `<i class="num${up ? ' up' : ''}">${chipIcon(NUM_ICON[k], 1, 12)}<em>${esc(k)}</em>${esc(v)}</i>`;
 
 // HUD strip: DMG + ROF numerics, then the strongest track chips (design §B6).
 function stripHTML(p, list, bump) {
@@ -249,7 +281,7 @@ function buildChips(p) {
 // the ⌖ prefix (chargeable), or a charged-up slot would keep a stale label.
 function legendKey(slots) {
   let key = '';
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < GL_SPAN_COUNT; i++) {
     const s = slots[i];
     if (!s) { key += '-|'; continue; }
     key += `${s.key}|${s.levels}|${s.levelCap}|${s.previewKey || ''}|`
@@ -263,7 +295,9 @@ function legendKey(slots) {
 // refreshes previewKey/previewName/previewFrom/previewTo every frame, but they
 // may briefly be null (first frame after a row spawns) — fall back to the pure
 // previewSlot() from upgrades.js, which reads player.tracks directly.
-function slotView(p, slot, tight) {
+function slotView(p, slot, tier) {
+  const tight = tier >= 1;
+  const cram = tier >= 2;
   const up = slot.up || ENTRIES[slot.key] || null;
   const raw = up && up.kind;
   const kind = raw === 'bad' || raw === 'mixed' ? raw : 'good';
@@ -292,7 +326,10 @@ function slotView(p, slot, tight) {
   const levelA = kind === 'bad' ? 0 : Math.max(0, to || 0);
   const maxA = (track && track.maxLv) || (gainDef && gainDef.maxLv) || 5;
 
-  return { up, key: slot.key, kind, levels, chargeable, defused, name, from, to, iconA, iconB, levelA, maxA, tight };
+  return {
+    up, key: slot.key, kind, levels, chargeable, defused, name,
+    from, to, iconA, iconB, levelA, maxA, tight, cram,
+  };
 }
 
 // Trade copy for a cramped row: SHORT names instead of the full display names
@@ -312,7 +349,12 @@ function slotText(p, v) {
   const up = v.up;
   const tight = v.tight;
   let body;
-  if (up && up.track) {
+  if (v.cram) {
+    // Three chips on anything short of a laptop: the NAME alone, because the
+    // level numeral is already painted on the glyph beside it and a wrapped
+    // 'LV1 → LV3' would be clipped by the two-line cap in style.css.
+    body = (up && up.name) || v.name || String(v.key);
+  } else if (up && up.track) {
     body = `${up.name} LV${v.from} → LV${v.to}`;
   } else if (up && up.key === 'rust') {
     // RUST eats your best offensive track — previewName is that live victim.
@@ -326,7 +368,9 @@ function slotText(p, v) {
     body = v.name || String(v.key);
   }
   if (!v.chargeable) return body;
-  if (v.kind === 'bad') return `${tight ? '⌖ DEFUSE · ' : '⌖ SHOOT TO DEFUSE · '}${body}`;
+  // ⌖ = "you can shoot this". In cram the bare crosshair has to carry it for bad
+  // slots too: '⌖ DEFUSE · HULL BREACH' needs a third line no phone chip has.
+  if (v.kind === 'bad' && !v.cram) return `${tight ? '⌖ DEFUSE · ' : '⌖ SHOOT TO DEFUSE · '}${body}`;
   return `${tight ? '⌖ ' : '⌖ SHOOT: '}${body}`;
 }
 
@@ -370,21 +414,58 @@ function setSpanClass(span, kind, defused, hidden) {
   span.className = cls.trim();
 }
 
+// Blank a span nothing is using: hidden AND emptied, so a stale label can never
+// reappear when the next row happens to light that span up again.
+function clearLegendSpan(node) {
+  if (!node) return;
+  setSpanClass(node.span, '', false, true);
+  node.txt.textContent = '';
+  for (let i = 0; i < node.cvs.length; i++) {
+    if (node.cvs[i]) node.cvs[i].classList.add('hidden');
+  }
+}
+
+// Legend off: hide the rail and blank every span (all three).
+function hideLegend() {
+  if (!els) return;
+  els.gateLegend.classList.add('hidden');
+  for (let i = 0; i < legend.length; i++) clearLegendSpan(legend[i]);
+}
+
+// Which spans a row of n slots lights up. Normally straight out of SPAN_FOR, but
+// a browser holding a STALE cached index.html may have no #gl-mid (sw.js caches
+// the HTML), and a lone slot must never render as an empty chip — so fall back to
+// whatever spans were actually built, in DOM order.
+function legendTargets(n) {
+  const want = SPAN_FOR[n] || SPAN_FOR[3];
+  let okAll = true;
+  for (let i = 0; i < want.length; i++) if (!legend[want[i]]) okAll = false;
+  if (okAll) return want;
+  const have = [];
+  for (let i = 0; i < legend.length; i++) if (legend[i]) have.push(i);
+  return have.slice(0, n);
+}
+
 function paintLegend(p, slots) {
-  // two spans on a phone = ~24 characters each, so the copy goes compact there
-  const tight = slots.length > 1 && narrowLegend();
-  for (let i = 0; i < legend.length; i++) {
-    const node = legend[i];
+  // slots arrive sorted by x; 1 -> middle span, 2 -> outer spans, 3 -> all three
+  const n = Math.min(slots.length, GL_SPAN_COUNT);
+  const map = legendTargets(n);
+  const tier = copyTier(n);
+  const used = [];
+  for (let i = 0; i < map.length; i++) {
+    const node = legend[map[i]];
     if (!node) continue;
-    const slot = slots[i];
-    if (!slot) { setSpanClass(node.span, '', false, true); continue; }
-    const v = slotView(p, slot, tight);
+    used.push(map[i]);
+    const v = slotView(p, slots[i], tier);
     node.txt.textContent = slotText(p, v);
     setSpanClass(node.span, v.kind, v.defused, false);
     const okA = paintLegendIcon(node, 0, v.iconA, v.levelA, v.maxA, v.defused, false);
     node.cvs[0].classList.toggle('hidden', !okA);
     const okB = v.iconB ? paintLegendIcon(node, 1, v.iconB, 0, v.maxA, v.defused, true) : false;
     node.cvs[1].classList.toggle('hidden', !okB);
+  }
+  for (let i = 0; i < legend.length; i++) {
+    if (used.indexOf(i) < 0) clearLegendSpan(legend[i]);
   }
 }
 
@@ -397,7 +478,8 @@ export const ui = {
       score: $('score'),
       actLabel: $('act-label'),
       bossWrap: $('boss-wrap'), bossBar: $('boss-bar'), bossName: $('boss-name'),
-      gateLegend: $('gate-legend'), glLeft: $('gl-left'), glRight: $('gl-right'),
+      gateLegend: $('gate-legend'),
+      glLeft: $('gl-left'), glMid: $('gl-mid'), glRight: $('gl-right'),
       toast: $('upgrade-toast'),
       statsStrip: $('stats-strip'),
       screens: {
@@ -414,8 +496,9 @@ export const ui = {
     };
 
     // --- legend nodes: 2 icon canvases + one text slab per span --------------
+    // Three spans in DOM order (left, mid, right) = up to three gate slots.
     dpr = readDpr();
-    legend = [els.glLeft, els.glRight].map((span) => {
+    legend = [els.glLeft, els.glMid, els.glRight].map((span) => {
       if (!span || typeof document.createElement !== 'function') return null;
       const node = { span, cvs: [], ctxs: [], txt: null };
       for (let i = 0; i < 2; i++) {
@@ -494,6 +577,7 @@ export const ui = {
       prevStrip = '';
       prevLegend = '';
       prevLevels = null;
+      hideLegend();   // and no chip from the last run's gate row survives
     }
     if (state === 'title') {
       prevScore = 0;
@@ -583,7 +667,7 @@ export const ui = {
       els.gateLegend.classList.remove('hidden');
     } else if (prevLegend !== '') {
       prevLegend = '';
-      els.gateLegend.classList.add('hidden');
+      hideLegend();
     }
 
     // --- Act / wave label (optional: game.level.actLabel may be undefined) ---

@@ -11,9 +11,16 @@
 //   barrier = 3 riveted iron plate segments   -> shoot through or steer around
 //   spikes  = gear teeth on a riveted plate   -> indestructible, steer around
 //   mine    = clockwork bomb + blinking lamp  -> pops and blasts what's near it
+//
+// v1.3 — crates are the run's LOOT CHANNEL. level.js moved most open-road
+// pickups into crates, so a break now rolls the weighted CRATE_LOOT table (six
+// pickup kinds), and a spawn can force the payout with instance overrides:
+//   spawnObstacle(game, 'crate', x, z, { extra: { dropChance: 1, loot: 'heal' } })
+// (spawnObstacle already spreads opts.extra onto the instance; dropLoot reads
+//  o.dropChance ?? o.def.dropChance and o.loot.)
 
 import { DESPAWN_BEHIND } from './config.js';
-import { chance, dist2 } from './utils.js';
+import { chance, rand, dist2 } from './utils.js';
 import { project } from './render.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
@@ -102,14 +109,53 @@ function mineBlast(game, o) {
   }
 }
 
+// ---- crate loot -------------------------------------------------------------
+// The weighted payout table for a broken crate (and barrier). Weights sum to 1
+// but do not have to: rollCrateLoot() normalises, so the lead can retune any
+// single line without touching the others. The three v1.3 kinds are deliberately
+// rare — finding an OVERDRIVE / STEAMBURST / GEARBOX should read as a jackpot.
+export const CRATE_LOOT = {
+  heal: 0.28,
+  gem: 0.30,
+  shieldToken: 0.12,
+  overdrive: 0.13,
+  steamburst: 0.09,
+  gearbox: 0.08,
+};
+
+// Weighted pick. The total is summed per roll (6 adds, only on a crate break —
+// never in a per-frame loop) so a live-edited table can never go stale.
+export function rollCrateLoot() {
+  const kinds = Object.keys(CRATE_LOOT);
+  let total = 0;
+  for (const k of kinds) total += CRATE_LOOT[k];
+  let r = rand(0, total);
+  for (const k of kinds) {
+    r -= CRATE_LOOT[k];
+    if (r <= 0) return k;
+  }
+  return kinds[kinds.length - 1] || 'gem';
+}
+
+// What THIS obstacle pays out:
+//   o.loot        forced kind (level.js guaranteed-loot crates) — skips the table
+//   mines         keep the old heal/gem coin flip: a minefield spitting
+//                 jackpot pickups would reward walking into it
+//   crate/barrier roll CRATE_LOOT
+function lootKind(o) {
+  if (o.loot) return o.loot;
+  if (o.type === 'mine') return chance(0.5) ? 'heal' : 'gem';
+  return rollCrateLoot();
+}
+
 function dropLoot(game, o) {
-  if (!chance(o.def.dropChance)) return;
+  if (!chance(o.dropChance ?? o.def.dropChance)) return;
   if (o.type === 'barrier') {
-    // Breaking a wall is the biggest investment -> pays out twice.
-    spawnPickup(game, 'gem', o.x - 20, o.z);
-    spawnPickup(game, chance(0.55) ? 'heal' : 'gem', o.x + 20, o.z);
+    // Breaking a wall is the biggest investment -> pays out twice (same table).
+    spawnPickup(game, lootKind(o), o.x - 20, o.z);
+    spawnPickup(game, lootKind(o), o.x + 20, o.z);
   } else {
-    spawnPickup(game, chance(0.5) ? 'heal' : 'gem', o.x, o.z);
+    spawnPickup(game, lootKind(o), o.x, o.z);
   }
 }
 
