@@ -325,16 +325,20 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 
 /* ---- Build stats strip: thin brass rims ---- */
+/* Power-up rail: a vertical stack on the LEFT edge (the bottom belongs to the
+   gate legend — on phones the two used to collide) */
 #stats-strip {
-  position: absolute; bottom: calc(8px + var(--safe-b)); left: 50%;
-  transform: translateX(-50%);
-  display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;
-  width: max-content; max-width: calc(100vw - 24px);
+  position: absolute;
+  left: calc(8px + var(--safe-l));
+  top: calc(66px + var(--safe-t));
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  max-height: calc(100vh - 200px);
+  overflow: hidden;
 }
 
 /* ---- approaching-gate legend: the TEXT for the icons shown in the field ---- */
 #gate-legend {
-  position: absolute; bottom: calc(38px + var(--safe-b)); left: 50%;
+  position: absolute; bottom: calc(10px + var(--safe-b)); left: 50%;
   transform: translateX(-50%);
   display: flex; gap: 10px; align-items: center;
   font-family: var(--font-display);
@@ -367,6 +371,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 @media (max-width: 600px) {
+  /* phones: the power-up rail compacts to icon + pips (names hidden) and
+     starts below the boss-bar zone so the two can never touch */
+  #stats-strip { gap: 3px; top: calc(118px + var(--safe-t)); }
+  #stats-strip i { font-size: 10px; padding: 2px 5px; border-radius: 5px; gap: 3px; }
+  #stats-strip i:not(.num) em { display: none; }
+
   /* phones: two slots can't hold a whole label on one line, so the text WRAPS
      (max two lines) instead of ellipsising away the '→ LV5' that matters.
      The spans keep their left/right order = the two gate panels' order. */
@@ -602,6 +612,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 #steer-hint b { color: var(--charge); }
 @media (max-width: 600px) {
   #steer-hint {
+    top: 45%; /* below the left power-up rail so the two never cross */
     font-size: 10px; letter-spacing: 1px; padding: 8px 12px;
     max-width: 94vw; overflow: hidden; text-overflow: ellipsis;
   }
@@ -855,8 +866,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #boss-wrap { top: calc(var(--safe-t) + 82px); }
   #boss-name { font-size: 11px; letter-spacing: 2px; }
   #progress-marker { width: 13px; height: 13px; top: 4px; }
-  #stats-strip { gap: 4px; bottom: calc(6px + var(--safe-b)); }
-  #stats-strip i { font-size: 10px; padding: 2px 6px; border-radius: 5px; gap: 3px; }
   /* small phones: ui.js also drops to 5 track chips */
   .chip-ico { width: 11px; height: 11px; }
   .pips { gap: 1.5px; }

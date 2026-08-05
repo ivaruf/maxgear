@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.2.0'; // leveled upgrade tracks, new mechanics, colored icons, bespoke bullets
+const VERSION = 'v1.2.1'; // power-up chips moved to a left-edge rail (mobile decluttering)
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

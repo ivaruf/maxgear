@@ -357,13 +357,9 @@ function paintLegendIcon(node, i, name, level, maxLevel, grey, negative) {
   return drawIcon(g, name, GL_PX / 2, GL_PX / 2, GL_PX * 0.875, grey ? GREY : null, opts);
 }
 
-// The strip wraps to two rows once a build gets deep (phones especially), and
-// the legend sits directly above it — so its measured height drives the offset.
-// One layout read per strip rebuild (~20 per run), never per frame.
-function liftLegend() {
-  const h = els.statsStrip.offsetHeight;
-  if (h > 0) els.gateLegend.style.bottom = `calc(${Math.round(h) + 14}px + var(--safe-b))`;
-}
+// The power-up rail lives on the LEFT edge now (v1.2.1), so the legend owns
+// the bottom and needs no measured lift anymore.
+function liftLegend() {}
 
 // The span carries the kind classes, so it is rewritten wholesale (its canvases
 // and .gl-txt are CHILDREN and survive) — never touch its innerHTML.
