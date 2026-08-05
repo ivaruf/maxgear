@@ -342,19 +342,49 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   pointer-events: none; white-space: nowrap;
   max-width: calc(100vw - 16px);
 }
+/* the spans are built by ui.init(): [canvas.gl-ico ×2][b.gl-txt] */
 #gate-legend span {
   padding: 5px 14px; border-radius: 5px;
   background: linear-gradient(180deg, rgba(42, 32, 22, 0.9), rgba(15, 12, 9, 0.92));
   border: 1px solid var(--rim);
   box-shadow: var(--sheen), 0 2px 8px rgba(0, 0, 0, 0.4);
   overflow: hidden; text-overflow: ellipsis;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; /* so a long trade label ellipsises instead of pushing the row */
 }
 #gate-legend span.good { color: #8fd8a3; border-color: rgba(86, 176, 108, 0.65); }
 #gate-legend span.bad { color: #eb9078; border-color: rgba(210, 81, 60, 0.65); }
 #gate-legend span.mixed { color: #cfa9ec; border-color: rgba(169, 123, 209, 0.65); }
+/* a bad gate shot down to levels 0 — dead panel, dead legend */
+#gate-legend span.defused {
+  color: #9aa4b3; border-color: rgba(150, 162, 179, 0.45);
+  background: linear-gradient(180deg, rgba(30, 30, 34, 0.88), rgba(12, 12, 14, 0.9));
+}
+/* baked 16px glyph (icons.js sprite cache, one drawImage per legend change) */
+.gl-ico { flex: 0 0 auto; display: block; width: 16px; height: 16px; }
+.gl-txt {
+  min-width: 0; font-weight: inherit; letter-spacing: inherit;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 @media (max-width: 600px) {
-  #gate-legend { font-size: 10.5px; gap: 6px; bottom: calc(34px + var(--safe-b)); }
-  #gate-legend span { padding: 4px 9px; }
+  /* phones: two slots can't hold a whole label on one line, so the text WRAPS
+     (max two lines) instead of ellipsising away the '→ LV5' that matters.
+     The spans keep their left/right order = the two gate panels' order. */
+  #gate-legend {
+    font-size: 10.5px; gap: 6px; bottom: calc(34px + var(--safe-b));
+    white-space: normal; align-items: stretch; justify-content: center;
+    /* a definite width: an abspos shrink-to-fit box only gets (100vw - left)
+       to play with, which would squeeze both spans into half the screen */
+    width: calc(100vw - 16px);
+  }
+  #gate-legend span {
+    padding: 4px 9px; gap: 5px;
+    /* shrink from the one-line width (never below), so two slots wrap instead
+       of ellipsising and a lone slot still hugs its own copy */
+    flex: 0 1 auto; letter-spacing: 0.6px; text-align: left;
+  }
+  .gl-ico { width: 14px; height: 14px; }
+  .gl-txt { white-space: normal; line-height: 1.22; max-height: 2.5em; }
 }
 #stats-strip i {
   font-style: normal;
@@ -365,8 +395,49 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   color: #efe2c6;
   box-shadow: var(--sheen);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  /* v1.2: chips are [icon][NAME][pips] — one brass plate, three parts */
+  display: inline-flex; align-items: center; gap: 4px;
 }
 #stats-strip i.up { color: #c9e8cf; border-color: rgba(86, 176, 108, 0.55); }
+/* a level went NEGATIVE (only ARMOUR PLATE can): rust-red plate */
+#stats-strip i.down, .build-row i.down {
+  color: #f2c3b4; border-color: rgba(210, 81, 60, 0.6); background: rgba(210, 81, 60, 0.14);
+}
+#stats-strip i.more, .build-row i.more { color: rgba(226, 197, 140, 0.85); letter-spacing: 0; }
+#stats-strip i em { font-style: normal; font-weight: 700; opacity: 0.72; }
+
+/* ---- baked icon glyphs in DOM chips (icons.js data-URL cache) ---- */
+.chip-ico { flex: 0 0 auto; display: block; width: 12px; height: 12px; }
+.build-row .chip-ico { width: 14px; height: 14px; }
+
+/* ---- level pips: five brass boxes, hollow when unspent ---- */
+.pips { display: inline-flex; align-items: center; gap: 2px; }
+.pip {
+  width: 5px; height: 5px; border-radius: 1px;
+  background: rgba(0, 0, 0, 0.5);
+  box-shadow: inset 0 0 0 1px rgba(111, 82, 32, 0.85);
+}
+.pip.on {
+  background: linear-gradient(180deg, var(--brass-lt), var(--brass));
+  box-shadow: inset 0 0 0 1px rgba(10, 8, 5, 0.7), 0 0 4px rgba(240, 180, 41, 0.45);
+}
+.pip.on.neg {
+  background: linear-gradient(180deg, #e2705a, var(--bad));
+  box-shadow: inset 0 0 0 1px rgba(10, 8, 5, 0.7), 0 0 4px rgba(210, 81, 60, 0.5);
+}
+.build-row .pip { width: 6px; height: 6px; }
+
+/* the chip whose level just changed gets one brass thump */
+#stats-strip i.bump { animation: chipBump 0.42s cubic-bezier(0.2, 1.4, 0.3, 1) 1; }
+@keyframes chipBump {
+  0% { transform: scale(1); }
+  38% {
+    transform: scale(1.16);
+    border-color: var(--rim-hot);
+    box-shadow: var(--sheen), 0 0 12px rgba(240, 180, 41, 0.55);
+  }
+  100% { transform: scale(1); }
+}
 
 /* ---- HUD buttons (>=40px touch targets): brass pushbuttons ---- */
 #mute-btn, #pause-btn {
@@ -730,9 +801,20 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   border: 1px solid var(--rim);
   color: #efe2c6;
   box-shadow: var(--sheen);
+  display: inline-flex; align-items: center; gap: 5px;
 }
 .build-row i.up { color: #c9e8cf; border-color: rgba(86, 176, 108, 0.55); background: rgba(86, 176, 108, 0.12); }
-.build-row i em { font-style: normal; opacity: 0.6; font-weight: 700; margin-right: 4px; font-size: 10px; }
+.build-row i em { font-style: normal; opacity: 0.6; font-weight: 700; font-size: 10px; }
+/* CORE / OFFENSE / DEFENCE each take a full line inside the existing row */
+.build-row .build-grp {
+  flex: 1 1 100%;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px;
+}
+.grp-cap {
+  font-family: var(--font-display);
+  font-size: 8.5px; letter-spacing: 2.4px; font-weight: 800;
+  color: rgba(226, 197, 140, 0.62);
+}
 
 /* ================= Responsive ================= */
 /* Short viewports / landscape phones: tighten everything vertically */
@@ -774,7 +856,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #boss-name { font-size: 11px; letter-spacing: 2px; }
   #progress-marker { width: 13px; height: 13px; top: 4px; }
   #stats-strip { gap: 4px; bottom: calc(6px + var(--safe-b)); }
-  #stats-strip i { font-size: 10px; padding: 2px 6px; border-radius: 5px; }
+  #stats-strip i { font-size: 10px; padding: 2px 6px; border-radius: 5px; gap: 3px; }
+  /* small phones: ui.js also drops to 5 track chips */
+  .chip-ico { width: 11px; height: 11px; }
+  .pips { gap: 1.5px; }
+  .pip { width: 4px; height: 4px; }
+  .build-row .pip { width: 5px; height: 5px; }
   #upgrade-toast { font-size: 15px; padding: 6px 14px; }
   .big-btn { padding: 13px 30px; font-size: 17px; letter-spacing: 1px; }
   .end-stats { gap: 7px; }

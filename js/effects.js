@@ -8,8 +8,9 @@
 //  - Particles are drawn additively ('lighter') in a single save/restore block.
 //    'steam' is the one exception: it flips to source-over for its two arcs and
 //    flips straight back, so soft smoke reads as smoke and not as light.
-//  - Particle kinds: spark, ring, flash, ember, pillar, steam (STEAMPUNK puffs)
-//    and gear (spinning cog silhouettes — `r1` doubles as spin rate in rad/s).
+//  - Particle kinds: spark, ring, flash, ember, pillar, steam (STEAMPUNK puffs),
+//    gear (spinning cog silhouettes — `r1` doubles as spin rate in rad/s) and
+//    bolt (tesla arc: seeded jagged polyline from x/z to the optional x2/z2).
 //  - Rotation is driven by the fx-local `clock` (frozen while paused) and the
 //    per-particle `seed`. Never Date.now().
 //  - Damage numbers aggregate: a plain-number pop of the same color within
@@ -28,6 +29,9 @@ const FLOATER_CAP = 40;
 const STEAM = '#e6e1d7';        // DESIGN.md steam
 const BRASS_HI = '#f0b429';     // DESIGN.md bright brass
 const BRASS = '#c9973b';        // DESIGN.md brass
+const AETHER = '#9df3ff';       // DESIGN.md player-fire cyan (muzzle default)
+const RIME = '#cfeeff';         // cold steam (frost vent)
+const BOLT_SEGS = 5;            // polyline segments per 'bolt' particle
 
 // One unit-radius cog path, built on first use (never at module load: this file
 // must stay importable outside a browser) and reused by every gear particle.
@@ -64,11 +68,14 @@ let bossT = 0, bossDur = 0, bossStage = 0;
 
 // ---- particle plumbing -------------------------------------------------------
 // One uniform object shape keeps this monomorphic for the JIT.
-function spawn(kind, x, y, z, vx, vy, vz, life, size, color, drag, grav, alpha, r1) {
+// `x2`/`z2` are only used by the 'bolt' kind (arc endpoint) but live on every
+// particle so the object shape stays monomorphic.
+function spawn(kind, x, y, z, vx, vy, vz, life, size, color, drag, grav, alpha, r1, x2, z2) {
   const p = {
     kind, x, y, z, vx, vy, vz,
     t: 0, life, size, color,
     drag, grav, alpha, r1,
+    x2: x2 || 0, z2: z2 || 0,
     seed: Math.random() * 6.2832,
   };
   if (particles.length >= LIMITS.particles) {
@@ -154,15 +161,43 @@ export const fx = {
 
   // Directional muzzle flash (defaults to straight ahead, +z). The aether-cyan
   // core is a gameplay read (player fire) and stays; one ejected spark is warmed
-  // to brass so the barrel itself reads as machined metal.
-  muzzle(x, z, dirX = 0, dirZ = 1) {
+  // to brass so the barrel itself reads as machined metal. `color` is optional and
+  // lets projectiles.js tint the flash with the live bullet style (default = cyan,
+  // so every existing call site is unchanged).
+  muzzle(x, z, dirX = 0, dirZ = 1, color) {
     const len = Math.hypot(dirX, dirZ) || 1;
     const ux = dirX / len, uz = dirZ / len;
-    spawn('flash', x + ux * 6, 6, z + uz * 6, 0, 0, 0, 0.07, 6, '#9df3ff', 0, 0, 0.85, 11);
+    const core = color || AETHER;
+    spawn('flash', x + ux * 6, 6, z + uz * 6, 0, 0, 0, 0.07, 6, core, 0, 0, 0.85, 11);
     for (let i = 0; i < 2; i++) {
       spawn('spark', x, 6, z, ux * rand(40, 130) + rand(-50, 50), rand(-10, 40), uz * rand(180, 320),
-        0.09, 1.5, i === 0 ? '#d9fbff' : '#ffdca8', 5, 0, 0.9, 0);
+        0.09, 1.5, i === 0 ? (color || '#d9fbff') : '#ffdca8', 5, 0, 0.9, 0);
     }
+  },
+
+  // Tesla arc between two world points: one jagged additive polyline, plus a
+  // fainter offset echo for heavy arcs. Used by collisions.chainFrom and by the
+  // bullet-style live nose bolts' world-space cousins.
+  arc(x1, z1, x2, z2, color = AETHER, width = 2, life = 0.14) {
+    spawn('bolt', x1, 6, z1, 0, 0, 0, life, width, color, 0, 0, 1, 0, x2, z2);
+    if (width > 2.5) {
+      const dx = x2 - x1, dz = z2 - z1;
+      const len = Math.hypot(dx, dz) || 1;
+      const nx = (-dz / len) * width * 2.2, nz = (dx / len) * width * 2.2;
+      spawn('bolt', x1 + nx * 0.35, 6, z1 + nz * 0.35, 0, 0, 0, life * 0.8, width * 0.6, color,
+        0, 0, 0.45, 0, x2 + nx, z2 + nz);
+    }
+  },
+
+  // Cryo-vent puff: one cold steam lobe + a pinpoint rime flash (2 particles).
+  frostPuff(x, z) {
+    spawn('steam', x, 5, z, 0, 26, 0, 0.5, 7, RIME, 0.9, 8, 0.42, 26);
+    spawn('flash', x, 6, z, 0, 0, 0, 0.08, 4, '#eaffff', 0, 0, 0.5, 9);
+  },
+
+  // Condenser siphon: thin green thread from a dying enemy back to the ship.
+  siphonThread(x1, z1, x2, z2) {
+    this.arc(x1, z1, x2, z2, '#56b06c', 1.6, 0.2);
   },
 
   // Gate celebration: light pillar + ground ring + a shower of spinning cogs
@@ -315,6 +350,33 @@ export const fx = {
           ctx.beginPath();
           ctx.moveTo(pr.sx, py);
           ctx.lineTo(tx, ty);
+          ctx.stroke();
+          break;
+        }
+        case 'bolt': {
+          // Tesla arc: seeded jagged polyline between two world points. The
+          // jitter is applied in screen space (perpendicular to the run) so the
+          // bolt keeps its character at any depth. Ends are pinned.
+          const pr2 = project(view, p.x2, p.z2);
+          if (pr2.f <= 0.015) break;
+          const y2 = pr2.sy - p.y * pr2.f * uS;
+          const dx = pr2.sx - pr.sx, dy = y2 - py;
+          const len = Math.hypot(dx, dy);
+          if (len < 0.5) break;
+          const nx = -dy / len, ny = dx / len;
+          const amp = Math.min(len * 0.17, 7 + p.size * 2.4) * (0.5 + fade * 0.5);
+          ctx.globalAlpha = Math.min(1, p.alpha * fade * fade * 1.5);
+          ctx.strokeStyle = p.color;
+          ctx.lineWidth = Math.max(0.8, p.size * k * 0.55);
+          ctx.beginPath();
+          ctx.moveTo(pr.sx, py);
+          for (let b = 1; b < BOLT_SEGS; b++) {
+            const bu = b / BOLT_SEGS;
+            const w = Math.sin(p.seed + bu * 12.9) * 0.62 + Math.sin(p.seed * 1.7 + bu * 27.1) * 0.38;
+            const taper = Math.sin(bu * Math.PI);
+            ctx.lineTo(pr.sx + dx * bu + nx * w * amp * taper, py + dy * bu + ny * w * amp * taper);
+          }
+          ctx.lineTo(pr2.sx, y2);
           ctx.stroke();
           break;
         }

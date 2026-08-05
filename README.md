@@ -52,9 +52,12 @@ Service Workers → "Update on reload" / "Bypass for network".
 | Restart | `R` (any time) | tap after win/lose |
 | Mute | `M` (or 🔊 button) | 🔊 button |
 
-**Gates:** green = good, red = bad (dodge them!), purple = trade-off (reads both effects).
-Gold **"SHOOT ME"** gates charge up as you shoot them — pump the number, then drive through.
-You can thread the small gap between a gate pair to take neither.
+**Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
+(LV1→LV5)** — crossing a gate grants levels; **shooting** a chargeable gate (pulsing ⌖) pumps
+in extra levels before you cross (14 hits = +1). Red gates can be **shot to DEFUSE**: charge
+them up to zero and they become harmless scrap. Panels show icon + number + level pips; the
+legend at the bottom of the HUD spells out exactly what the approaching gate will do.
+You can still thread the gap between a gate pair to take neither.
 
 ## Architecture
 
@@ -85,9 +88,12 @@ js/render.js                     projection, camera, background/road, frame orch
 js/player.js js/projectiles.js   player+squad, volleys, enemy shots
 js/collisions.js                 ALL collision resolution
 js/enemies.js                    9 enemy types, behaviors, 3-phase boss
-js/gates.js js/pickups.js        19 upgrades, gate rows, heal/gem/shield pickups
+js/upgrades.js                   18 level tracks, derived stats, boss DPS estimator
+js/gates.js js/pickups.js        gate apparatus (charge/defuse), heal/gem/shield pickups
 js/level.js js/obstacles.js      level director + timeline, 4 obstacle types
-js/effects.js                    particles, shake, flashes, damage numbers, boss intro
+js/icons.js                      colored upgrade glyphs + level pips (canvas + DOM bakes)
+js/bulletStyle.js                bespoke bullet visuals computed from your build
+js/effects.js                    particles, arcs, shake, flashes, damage numbers, boss intro
 js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative music
 ```
 
@@ -106,26 +112,31 @@ js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative mu
 | **Elite** (modifier) | any type: 2.5× HP, 1.3× size, gold aura, guaranteed heal drop |
 | **IRONCLAD** (boss) | giant clockwork war engine, 3 phases: aimed volleys → sweeping barrages → enraged fans + telegraphed lane slams; summons capped adds that drop heals; brief shield at each phase flip. HP scales to your actual DPS so the fight lasts ~30s for any build. |
 
-## Upgrades (gates)
+## Upgrades — 18 level tracks (LV1→LV5)
 
-**Good:** `+N DMG`*, `+N% FIRE RATE`*, `+1 SHOT`, `+N ALLY`*, `HEAL 30`, `+25 MAX HP`, `+1 PIERCE`,
-`EXPLOSIVE SHOTS`, `+15% CRIT`, `+1 RICOCHET`, `TIGHTER SPREAD`, `+20% MOVE SPEED`, `+120 MAGNET`
-(* = chargeable: value grows while you shoot the gate). Explosive, pierce, and ricochet stack.
-**Bad (dodge!):** `-20 HP`, `-25% DMG`, `-25% FIRE RATE`.
-**Trade-offs:** `+2 SHOTS / -25% DMG`, `+60% DMG / -25 MAX HP`, `EXPLOSIVE / -20 HP`.
+Every track scales five levels with rising power AND rising visuals:
 
-All upgrades compose and are clamped (max 6 shots/volley, 8 allies, ~14 volleys/s, etc.),
-so no combination destabilizes the game.
+**Offense:** Heavy Shot, Forced Draught (fire rate), Split Barrel (multishot), Gyro Shell
+(homing), Lance (pierce — LV5 punches through shields), Boiler Bomb (explosive), **Tesla
+Coil** (chain lightning), **Incendiary** (burn damage-over-time, LV4 spreads on death),
+**Cryo-Vent** (slow, LV5 cancels charger dashes), Hair Trigger (crit chance *and*
+multiplier), **Flywheels** (orbiting sawblades that shred enemy shots at LV3+),
+**Broadside** (side/rear auto-guns up to an 8-way ring), **Death Burst** (enemies explode
+into shrapnel).
+**Defence:** Escort (mortal allied ships), Armour Plate (max HP + damage reduction; can go
+NEGATIVE via trades), **Aegis Coil** (recharging shield charges, LV3+ shockwave),
+**Condenser** (lifesteal on kills), Thrust (move speed).
+**Instants:** Repair, Surplus. **Bad gates:** Rust (eats a level of your best track) and
+Hull Breach (% HP hit) — both defusable by shooting. **Trades:** Scattergun, Glass Cannon,
+Overpressure.
 
-**Allies** (`+N ALLY` gates) are real escort ships: they orbit close around you, fire your
-full volley, and have their own 60 HP — they soak enemy contact and shots like armor, flash
-a brief health bar only when hit, and die when spent. Heal pickups repair your most damaged
-ally whenever you're already at full health.
+Gate rows offer choices from random pools — including `deepen` ("your best track") vs
+`branch out` ("something new") dilemmas — so every run builds differently.
 
-Gate panels show **icon glyphs + numbers** (no words in the game field); the plain-text
-meaning of the approaching gate appears in a legend at the bottom of the HUD. Most gate
-rows draw their options from **random pools** — strong upgrades compete against each other
-(e.g. +shots vs +allies) — and numeric values roll ±30%, so every run offers different builds.
+**Your bullets show your build:** projectile size, shape, hue, trails, fins, fuses, orbiting
+glints and crackle are computed from the upgrade combination (a lance build fires finned
+needles; a bomb build lobs fused orbs; crits are always gold). Cosmetic only — hitboxes
+never change.
 
 ## Obstacles & pickups
 

@@ -7,6 +7,7 @@ import { createView, resizeView, updateCamera, render } from './render.js';
 import { createPlayer, updatePlayer } from './player.js';
 import { updateProjectiles } from './projectiles.js';
 import { updateEnemies, spawnEnemy, ENEMY_TYPES } from './enemies.js';
+import { bossTargetHp } from './upgrades.js';
 import { updateGates } from './gates.js';
 import { updateObstacles } from './obstacles.js';
 import { updatePickups } from './pickups.js';
@@ -89,14 +90,10 @@ function step(dt) {
   if (game.pendingBossAt !== null && game.player.z >= game.pendingBossAt - 250) {
     game.runSpeed = 0;
     if (!game.boss && !game.bossDefeated) {
-      // Boss HP scales with the player's actual firepower so the fight lasts
-      // ~30s whether the build is weak or maxed (pure distance-scaling made
-      // strong builds melt it in seconds and weak builds hopeless).
-      const s = game.player.stats;
-      // ~0.35 of theoretical DPS actually lands on a strafing boss (spread,
-      // squad offsets, phase shields) -> hp = dps * 0.35 * ~28s target fight
-      const dps = (s.damage * s.projectiles * (1 + s.squad) * (1 + s.critChance)) / s.fireInterval;
-      const targetHp = Math.min(Math.max(dps * 10, 4000), 45000);
+      // Boss HP scales with the player's actual landed DPS so the fight lasts
+      // ~25s for any build. The estimator lives in upgrades.js next to the
+      // track tables so it can't rot when upgrades change.
+      const targetHp = bossTargetHp(game.player);
       spawnEnemy(game, 'boss', 0, game.player.z + 700, { hpScale: targetHp / ENEMY_TYPES.boss.hp });
     }
   }

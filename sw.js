@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.1.2'; // title decluttered: how-to panel -> one-shot steer hint
+const VERSION = 'v1.2.0'; // leveled upgrade tracks, new mechanics, colored icons, bespoke bullets
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -17,11 +17,13 @@ const ASSETS = [
   './manifest.webmanifest',
   './css/style.css',
   './js/audio.js',
+  './js/bulletStyle.js',
   './js/collisions.js',
   './js/config.js',
   './js/effects.js',
   './js/enemies.js',
   './js/gates.js',
+  './js/icons.js',
   './js/input.js',
   './js/level.js',
   './js/main.js',
@@ -31,6 +33,7 @@ const ASSETS = [
   './js/projectiles.js',
   './js/render.js',
   './js/ui.js',
+  './js/upgrades.js',
   './js/utils.js',
   './icons/icon-192.png',
   './icons/icon-512.png',

@@ -46,18 +46,20 @@ pickups → gates → collisions → cleanup → fx → ui.
 sky/background → road → all world entities **sorted by z descending** (painter's algo) →
 player+squad → projectiles → fx particles/floaters → screen flash. HUD is DOM.
 
-## Player stats (player.js — upgrades mutate ONLY these)
-```js
-stats = { damage:10, fireInterval:0.32, projectiles:1, spreadDeg:7, pierce:0,
-          critChance:0, explosive:0, ricochet:0, squad:0, moveSpeed:360, magnet:0 }
-```
-Caps live in `config.js` (`CAPS`) and are enforced in `clampStats()` — upgrades may exceed
-temporarily but clamp keeps the game stable (squad ≤ 8, projectiles ≤ 6, fireInterval ≥ 0.07).
+## Player stats & level tracks (v1.2 — DERIVED STATS)
+Persistent build state = `player.tracks` (integer level map, LV0-5; plating -2..5).
+`stats` is a pure function of it: `recomputeStats(player)` in js/upgrades.js resets to
+BASE_STATS (config.js), runs each track's `build(stats, lv, player)` (exactly ONE track owns
+each stat field), then `finalize()` (derived spreadDeg) and clampStats. NEVER mutate stats
+persistently outside this flow — the next recompute erases it. Bad effects are therefore
+LEVEL operations (rust = -1 level) or instant HP hits (breach). CAPS (config.js) are
+crash-guards; LV5 is the design cap. Boss HP = `bossTargetHp(player)` (landed-DPS estimate
+× ~24s, clamp 4.5k-60k) — lives in upgrades.js so it can't rot.
 
-`stats.squad` is mirrored by `player.allies[]` (synced each frame in player.js): persistent
-orbiting escort ships with own hp/invuln/flash state (`ALLY` tuning block). collisions.js
-routes enemy contact + enemy shots to `damageAlly()`; ally death shrinks `stats.squad`.
-`healPlayer()` overflow repairs the most damaged ally.
+18 tracks: damage, fireRate, multishot, homing, lance, blast, arc (chain lightning), burn,
+frost, crit, saw (orbiting flywheels), broadside (aux guns), shrapnel, squad, plating,
+aegis, siphon, thrust. Non-tracks: repair, surplus (instants); rust, breach (bad, DEFUSABLE
+by shooting to 0); tradeScattergun / tradeGlassCannon / tradeOverpressure (mixed).
 
 ## Enemy format (enemies.js, data-driven)
 ```js
@@ -67,18 +69,18 @@ Behavior = named function in `behaviors` map: `(e, dt, game) => void`. Enemies m
 `e.x/e.z`. Death goes through `killEnemy(game, e, cause)` (handles score, fx, splitting, drops).
 Enemy ranged attacks push into `game.enemyShots` via `fireEnemyShot(game, x, z, tx, tz, speed, dmg)`.
 
-## Upgrade / gate format (gates.js, data-driven)
-```js
-UPGRADES.key = { kind:'good'|'bad'|'mixed', label(v), icon, vtext(v)?, color?, base?,
-                 chargeable?, chargeStep?, max?, apply(game, value) }
-// mixed entries use iconGain/vtextGain + iconLoss/vtextLoss instead of icon/vtext
-```
-Panels render icon glyphs + numbers only (ICONS map in gates.js); `label(v)` strings feed the
-HUD gate legend (ui.js), the upgrade toast, and the end screens. Level gate segments may give
-each slot an ARRAY of keys = a per-run random pool (resolved in level.js, ±30% value variance
-on numeric upgrades via VARIED_VALUE).
-Gates spawn as rows of 1–2 slots. Chargeable slots gain value when shot (`gateOnShot`). Slot shows
-live label + color by kind. Crossing applies exactly one slot, marks the row used, fires fx/toast.
+## Upgrade / gate format (upgrades.js owns the roster; gates.js owns the apparatus)
+`ENTRIES[key]` = track or instant/bad/mixed entry (see upgrades.js header for exact shapes).
+Gate slots (from level.js `resolveGateDefs`): `{ key, levels (signed), levelCap }` →
+spawnGateRow builds `{ key, up, x, halfW, levels, levels0, levelCap, charge, chargeable,
+hitFlash, previewKey/previewName/previewFrom/previewTo }`. ONE rule: chargeable ⟺
+levels < levelCap; 14 hits = +1 level; bad slots charge -2 → -1 → 0 = DEFUSED (crossing a
+defused slot is a no-op). Panels are ICON + ±N + 5-pip strip (words live in the HUD legend).
+Level pools: '@own' (highest non-maxed track), '@new' (random LV0), arrays = pools filtered
+of maxed keys. Icons come from js/icons.js (colored palette painters + level pips);
+projectile appearance from js/bulletStyle.js (style recomputed on weapon-stat change,
+double-buffered; cyan-anchored hue clamp ±40° is LOAD-BEARING — player fire must never
+read as enemy/gate colors).
 
 ## Level format (level.js, data-driven)
 Timeline of segments keyed by distance: `{ at: 900, type:'wave'|'gates'|'obstacles'|'pickup'|'boss', ... }`.
@@ -87,7 +89,8 @@ and arena mode; victory = boss dead. Progress = `player.z / bossAt`.
 
 ## FX / audio API (call sites already wired — implement, don't rename)
 `fx.hitSpark(x,z,color)`, `fx.explosion(x,z,radius,color)`, `fx.muzzle(x,z,dirX?,dirZ?)`, `fx.textPop(x,z,text,color)`,
-`fx.gateBurst(x,z,color)`, `fx.bossIntro(dur?)`,
+`fx.gateBurst(x,z,color)`, `fx.bossIntro(dur?)`, `fx.arc(x1,z1,x2,z2,color,w?,life?)`,
+`fx.frostPuff(x,z)`, `fx.siphonThread(x1,z1,x2,z2)`, (muzzle takes optional trailing color),
 `fx.shake(mag,dur)`, `fx.flash(color,alpha,dur)`, `fx.update(dt)`, `fx.draw(ctx,view)` — world-space x/z.
 `audio.shoot/hit/explode/enemyDie/hurt/pickup/gateGood/gateBad/gateCharge/bossRoar/win/lose/click()`,
 `audio.toggleMute()`, `audio.setBossMode(bool)`.
@@ -130,6 +133,9 @@ js/gates.js js/pickups.js           — upgrade agent
 js/level.js js/obstacles.js         — level agent
 js/effects.js (+render.js visuals)  — fx agent
 js/ui.js js/audio.js (+style.css)   — ui/audio agent
+js/upgrades.js                      — upgrade agent (track tables, recompute, boss estimator)
+js/icons.js                         — visuals (palette glyph painters + bakes)
+js/bulletStyle.js                   — visuals (bespoke bullet styles + sprites)
 ```
 Rules for sub-agents: work ONLY in your files, code against the interfaces above, no new global
 state, no DOM access outside ui.js, no top-level side effects (export functions; main.js wires).

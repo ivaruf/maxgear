@@ -5,9 +5,10 @@
 //
 // Segment types: wave | gates | obstacles | pickup | boss
 //   wave      { entries: [{ type, count?, pattern?, stagger?, xOffset?, opts? }] }
-//   gates     { defs: [slot, slot?] } — each slot is {key, value?} (fixed) or an
-//              ARRAY of keys: a random pool the director picks from per run.
-//              Numeric upgrades also get +-30% value variance (see VARIED_VALUE).
+//   gates     { defs: [slot, slot?], levels, levelCap } — v1.2 LEVEL tracks:
+//              `levels`/`levelCap` are the ROW TIER (design §B3) and every slot
+//              inherits them unless it overrides. See resolveGateDefs() for the
+//              slot grammar ('@own' / '@new' / pools / {key}). No value variance.
 //   obstacles { layout: [{ type, x, dz?, opts? }], repeat?: { times, dz } }
 //   pickup    { items:  [{ kind, x, dz? }],        repeat?: { times, dz } }
 //   boss      {}                                        sets game.pendingBossAt
@@ -20,34 +21,115 @@
 import { ROAD_HALF, SPAWN_AHEAD } from './config.js';
 import { clamp, rand, choice } from './utils.js';
 import { spawnEnemy } from './enemies.js';
-import { spawnGateRow, UPGRADES } from './gates.js';
+import { spawnGateRow } from './gates.js';
 import { spawnObstacle } from './obstacles.js';
 import { spawnPickup } from './pickups.js';
+import { ENTRIES, TRACK_ORDER, bestTrack, isMaxed, isOffered, trackLevel } from './upgrades.js';
 
-// Upgrades whose value rolls +-30% around base when spawned via the director.
-// Structural counts (multishot/squad/pierce/ricochet/explosive/trades) stay fixed.
-const VARIED_VALUE = new Set([
-  'damage', 'fireRate', 'heal', 'maxHp', 'hurt', 'loseDamage', 'loseFireRate',
-  'crit', 'moveSpeed', 'magnet',
-]);
+// ---- gate slot resolution ---------------------------------------------------
+// A gate row is 1-2 SLOTS; every slot resolves to { key, levels, levelCap },
+// which is exactly what spawnGateRow() consumes.
+//
+// SLOT GRAMMAR (one entry of seg.defs per slot):
+//   '@own'                    your highest-level non-maxed track (double down)
+//   '@new'                    a random LV0 track (branch out)
+//   'damage'                  explicit key
+//   ['a', 'b', '@new']        random pool; maxed keys are filtered out, and
+//                             '@own'/'@new' may appear as pool entries too
+//   { key|own|new|pool, levels?, levelCap? }    same, with a tier override
+//
+// TIERS (design §B3) come from the SEGMENT: seg.levels / seg.levelCap.
+//   G1-G2 1/3 · G3-G7 1/2 · G8-G11 2/3 · G12-G14 2/3 (G14 @own slot: 3)
+// Per-kind slot values are forced by upgrades.js so gates.js only needs the
+// rule `chargeable <=> levels < levelCap`:
+//   bad      levels -1/-2, levelCap 0  (charging DEFUSES up to 0)
+//   instants levels 1,     levelCap 1  (fixed one-shot)
+//   mixed    levels 2..3   (the trade's GAIN side scales, the loss never does)
+//
+// FALLBACK CHAIN when a token can't resolve (everything maxed / duplicated):
+//   @own -> @new -> any non-maxed track -> 'surplus' (never a dead gate).
+// The second slot never duplicates the first — so on a fully maxed build the
+// row reads SURPLUS + REPAIR rather than the same instant twice.
+const OWN = '@own';
+const NEW = '@new';
+const FALLBACK_INSTANTS = ['surplus', 'repair'];
 
-// Resolve a gate segment's defs: arrays are random pools (per-run variety);
-// the second slot never duplicates the first slot's pick.
-function resolveGateDefs(defs) {
-  const taken = new Set();
-  return defs.map((d) => {
-    if (typeof d === 'object' && !Array.isArray(d)) return d; // explicit {key, value}
-    const pool = Array.isArray(d) ? d : [d];
-    const open = pool.filter((k) => !taken.has(k));
-    const key = choice(open.length ? open : pool);
-    taken.add(key);
-    const out = { key };
-    const up = UPGRADES[key];
-    if (up && VARIED_VALUE.has(key)) {
-      out.value = Math.max(1, Math.round(up.base * rand(0.7, 1.3)));
+// '@own': owned (LV1+) and still has headroom.
+const pickOwn = (player, taken) =>
+  bestTrack(player, (key, lv, def) => !taken.has(key) && lv >= 1 && lv < def.maxLv);
+
+const pickFrom = (player, taken, test) => {
+  const open = TRACK_ORDER.filter((k) => !taken.has(k) && test(k));
+  return open.length ? choice(open) : null;
+};
+const pickNew = (player, taken) => pickFrom(player, taken, (k) => trackLevel(player, k) === 0);
+const pickAny = (player, taken) => pickFrom(player, taken, (k) => !isMaxed(player, k));
+
+function pickToken(player, tok, taken) {
+  if (tok === OWN) return pickOwn(player, taken);
+  if (tok === NEW) return pickNew(player, taken);
+  if (!tok || taken.has(tok) || !isOffered(player, tok)) return null;
+  return tok;
+}
+
+// Pool = per-run variety. Resolve every token, then pick among the survivors.
+function pickPool(player, pool, taken) {
+  const open = [];
+  for (const tok of pool) {
+    const key = pickToken(player, tok, taken);
+    if (key && !open.includes(key)) open.push(key);
+  }
+  return open.length ? choice(open) : null;
+}
+
+function normalizeDef(d) {
+  if (typeof d === 'string') return { tokens: [d] };
+  if (Array.isArray(d)) return { tokens: d, pool: true };
+  if (d && typeof d === 'object') {
+    if (Array.isArray(d.pool)) return { tokens: d.pool, pool: true, levels: d.levels, levelCap: d.levelCap };
+    if (d.own) return { tokens: [OWN], levels: d.levels, levelCap: d.levelCap };
+    if (d.new) return { tokens: [NEW], levels: d.levels, levelCap: d.levelCap };
+    return { tokens: [d.key], levels: d.levels, levelCap: d.levelCap };
+  }
+  return { tokens: [] };
+}
+
+// Turn a resolved key + the row tier into the slot contract gates.js reads.
+function slotFor(key, spec, tier) {
+  const e = ENTRIES[key];
+  if (e && !e.track) {
+    if (e.kind === 'bad') {
+      return { key, levels: -Math.max(1, Math.abs(spec.levels ?? e.slotLevels ?? 1)), levelCap: 0 };
     }
-    return out;
-  });
+    if (e.kind === 'mixed') {
+      const levels = Math.max(1, spec.levels ?? e.slotLevels ?? tier.levels ?? 2);
+      return { key, levels, levelCap: Math.max(levels, spec.levelCap ?? tier.levelCap ?? levels) };
+    }
+    const levels = Math.max(1, e.slotLevels ?? 1);        // instants: fixed
+    return { key, levels, levelCap: Math.max(levels, e.slotLevelCap ?? levels) };
+  }
+  const levels = Math.max(1, spec.levels ?? tier.levels ?? 1);
+  return { key, levels, levelCap: Math.max(levels, spec.levelCap ?? tier.levelCap ?? levels) };
+}
+
+// tier = the gates segment ({ levels, levelCap }); game supplies player.tracks.
+export function resolveGateDefs(game, defs, tier = {}) {
+  const player = game?.player ?? { tracks: {} };
+  const taken = new Set();
+  const out = [];
+  for (const d of defs) {
+    const spec = normalizeDef(d);
+    let key = spec.pool
+      ? pickPool(player, spec.tokens, taken)
+      : pickToken(player, spec.tokens[0], taken);
+    if (!key) {
+      key = pickOwn(player, taken) ?? pickNew(player, taken) ?? pickAny(player, taken)
+        ?? FALLBACK_INSTANTS.find((k) => !taken.has(k)) ?? 'surplus';
+    }
+    taken.add(key);
+    out.push(slotFor(key, spec, tier));
+  }
+  return out;
 }
 
 // ---- run tuning (named so the lead can retune without reading the timeline) --
@@ -103,14 +185,15 @@ const TIMELINE = [
   { at: 350, type: 'wave', entries: [{ type: 'grunt', count: 2, pattern: 'line', stagger: 0 }] },
   { at: 750, type: 'obstacles', layout: [{ type: 'crate', x: -120 }, { type: 'crate', x: 120 }] },
   // G1 — first gate is a single chargeable slot: "SHOOT ME" is unmissable.
-  { at: 1200, type: 'gates', defs: [{ key: 'damage' }] },
+  // Tutorial tier: 1 level granted, chargeable up to 3.
+  { at: 1200, type: 'gates', levels: 1, levelCap: 3, defs: [{ key: 'damage' }] },
   { at: 1550, type: 'wave', entries: [{ type: 'grunt', count: 3, pattern: 'line', stagger: 90 }] },
   { at: 2000, type: 'obstacles', layout: [{ type: 'crate', x: -60 }, { type: 'crate', x: 60 }] },
   { at: 2150, type: 'pickup', items: [{ kind: 'gem', x: -60 }, { kind: 'gem', x: 60 }] },
   { at: 2500, type: 'wave', entries: [{ type: 'grunt', count: 4, pattern: 'vee', stagger: 70 }] },
   { at: 2900, type: 'obstacles', layout: [{ type: 'spikes', x: -70 }, { type: 'spikes', x: 70 }] },
   // G2 — second chargeable single: reinforces "shoot the gate for longer".
-  { at: 3200, type: 'gates', defs: [{ key: 'fireRate' }] },
+  { at: 3200, type: 'gates', levels: 1, levelCap: 3, defs: [{ key: 'fireRate' }] },
   { at: 3600, type: 'wave', entries: [{ type: 'grunt', count: 3, pattern: 'line', stagger: 80 }] },
   { at: 3850, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
 
@@ -123,8 +206,11 @@ const TIMELINE = [
     { type: 'runner', count: 2, pattern: 'pincer', stagger: 0 },
   ] },
   { at: 5950, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'gem', x: 50 }] },
-  // G3 — first real dilemma: two good options, no safe default.
-  { at: 6400, type: 'gates', defs: [['multishot', 'damage'], ['squad', 'fireRate']] },
+  // G3 — first real dilemma: two good options, no safe default. Offense both
+  // sides: the run should feel like it is arming up before it starts taxing.
+  { at: 6400, type: 'gates', levels: 1, levelCap: 2, defs: [
+    ['multishot', 'damage', 'blast'], ['squad', 'fireRate', 'crit'],
+  ] },
 
   // == ZONE 2B — SHOOTER (6400-10200 | 26-41 s) ============================
   { at: 6900, type: 'wave', entries: [{ type: 'shooter', count: 2, pattern: 'line', stagger: 0 }] },   // showcase
@@ -150,7 +236,11 @@ const TIMELINE = [
     { type: 'shooter', count: 2, pattern: 'right', stagger: 90 },
   ] },
   // G4 — good/bad. The bad slot sits on the RIGHT, punishing autopilot.
-  { at: 10200, type: 'gates', defs: [['pierce', 'crit', 'moveSpeed'], ['hurt']] },
+  // HULL BREACH spawns at full strength (-2 = 25% maxHp) and defuses in two
+  // charge steps: full -> half -> DEFUSED.
+  { at: 10200, type: 'gates', levels: 1, levelCap: 2, defs: [
+    ['lance', 'crit', 'burn', 'arc'], { key: 'breach', levels: -2 },
+  ] },
 
   // == ZONE 2C — SPLITTER (10200-14000 | 41-56 s) ==========================
   { at: 10700, type: 'wave', entries: [{ type: 'splitter', count: 2, pattern: 'center', stagger: 140 }] }, // showcase
@@ -171,8 +261,11 @@ const TIMELINE = [
     { type: 'shooter', count: 2, pattern: 'pincer', stagger: 0 },
     { type: 'grunt', count: 3, pattern: 'line', stagger: 60 },
   ] },
-  // G5 — good/good power spike right before the first tank.
-  { at: 14000, type: 'gates', defs: [['squad', 'multishot'], ['explosive', 'damage']] },
+  // G5 — good/good power spike right before the first tank: more bodies/coverage
+  // on the left, more punch per shot on the right.
+  { at: 14000, type: 'gates', levels: 1, levelCap: 2, defs: [
+    ['squad', 'multishot', 'saw', 'broadside'], ['blast', 'damage', 'shrapnel'],
+  ] },
 
   // == ZONE 2D — TANK (14000-17800 | 56-71 s) ==============================
   { at: 14450, type: 'wave', entries: [{ type: 'tank', count: 1, pattern: 'center' }] },                 // showcase
@@ -194,8 +287,10 @@ const TIMELINE = [
     { type: 'shooter', count: 2, pattern: 'pincer', stagger: 0 },
   ] },
   { at: 17450, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
-  // G6 — mixed: raw crit vs a spray-and-pray trade-off.
-  { at: 17800, type: 'gates', defs: [['crit', 'fireRate', 'ricochet'], ['tradeSprayPray', 'magnet']] },
+  // G6 — mixed: straight offense vs the scattergun trade (MIXED on the RIGHT).
+  { at: 17800, type: 'gates', levels: 1, levelCap: 2, defs: [
+    ['crit', 'fireRate', 'arc', 'frost'], ['tradeScattergun', 'homing'],
+  ] },
 
   // == ZONE 2E — CHARGER (17800-21600 | 71-86 s) ===========================
   { at: 18250, type: 'wave', entries: [{ type: 'charger', count: 2, pattern: 'center', stagger: 170 }] }, // showcase
@@ -214,8 +309,11 @@ const TIMELINE = [
   // Spikes across x -200..80: commit to the right lane, gem pays for it.
   { at: 21050, type: 'obstacles', layout: [{ type: 'spikes', x: -150 }, { type: 'spikes', x: -50 }, { type: 'spikes', x: 50 }] },
   { at: 21200, type: 'pickup', items: [{ kind: 'gem', x: 150 }] },
-  // G7 — utility row: dodge better vs loot better.
-  { at: 21600, type: 'gates', defs: [['moveSpeed', 'magnet', 'spread'], ['damage', 'crit']] },
+  // G7 — first "double down vs buy utility" row: sharpen what you already have,
+  // or pick up survivability before the shield wall.
+  { at: 21600, type: 'gates', levels: 1, levelCap: 2, defs: [
+    '@own', ['thrust', 'siphon', 'aegis'],
+  ] },
 
   // == ZONE 2F — SHIELD (21600-24400 | 86-98 s) ============================
   { at: 22050, type: 'wave', entries: [{ type: 'shield', count: 2, pattern: 'line', stagger: 0 }] },     // showcase
@@ -234,7 +332,11 @@ const TIMELINE = [
     { type: 'crate', x: -150 }, { type: 'crate', x: -50 }, { type: 'crate', x: 50 }, { type: 'crate', x: 150 },
   ] },
   // G8 — good/bad with the BAD slot on the LEFT this time (bait flipped).
-  { at: 24400, type: 'gates', defs: [['loseFireRate'], ['multishot', 'squad']] },
+  // From here on rows grant 2 levels and charge to 3. RUST eats one level of
+  // your best offensive track unless you shoot it out.
+  { at: 24400, type: 'gates', levels: 2, levelCap: 3, defs: [
+    { key: 'rust', levels: -1 }, '@new',
+  ] },
 
   // == ZONE 3 — MIDPOINT SET-PIECE (24850-26900 | 55-60%) ==================
   // A concrete line across x -200..130 with an elite tank + escort walking out
@@ -251,7 +353,9 @@ const TIMELINE = [
   { at: 25850, type: 'wave', entries: [{ type: 'charger', count: 2, pattern: 'pincer', stagger: 0 }] },
   { at: 26150, type: 'pickup', items: [{ kind: 'heal', x: -60 }, { kind: 'shieldToken', x: 0 }, { kind: 'heal', x: 60 }] },
   // G9 — recovery row, deliberately tight after the set-piece.
-  { at: 26400, type: 'gates', defs: [['heal', 'maxHp'], ['maxHp', 'squad']] },
+  { at: 26400, type: 'gates', levels: 2, levelCap: 3, defs: [
+    ['repair', 'plating'], ['plating', 'squad', 'aegis'],
+  ] },
   { at: 26800, type: 'pickup', items: [{ kind: 'gem', x: 0 }], repeat: { times: 4, dz: 90 } },
 
   // == ZONE 4 — LATE GAME (27000-41200 | 108-165 s) ========================
@@ -271,8 +375,10 @@ const TIMELINE = [
     { type: 'tank', count: 2, pattern: 'line', stagger: 0 },
     { type: 'shield', count: 1, pattern: 'center' },
   ] },
-  // G10 — the risk row: all-in glass cannon vs a straight heal.
-  { at: 30200, type: 'gates', defs: [['tradeGlassCannon', 'tradeSprayPray'], ['heal', 'maxHp']] },
+  // G10 — the risk row: all-in trade (MIXED on the LEFT) vs a safe repair.
+  { at: 30200, type: 'gates', levels: 2, levelCap: 3, defs: [
+    ['tradeGlassCannon', 'tradeScattergun'], ['repair', 'plating', 'aegis'],
+  ] },
   { at: 30700, type: 'wave', entries: [{ type: 'mini', count: 10, pattern: 'columns', stagger: 40 }] },  // swarm
   { at: 31350, type: 'obstacles', repeat: { times: 2, dz: 430 }, layout: [
     { type: 'spikes', x: -160 }, { type: 'spikes', x: -60 },
@@ -286,8 +392,10 @@ const TIMELINE = [
   { at: 32550, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
   { at: 32900, type: 'wave', entries: [{ type: 'runner', count: 5, pattern: 'pincer', stagger: 0, opts: { elite: true } }] },
   { at: 33450, type: 'wave', entries: [{ type: 'splitter', count: 4, pattern: 'vee', stagger: 80 }] },
-  // G11 — good/bad, bad slot back on the right.
-  { at: 34000, type: 'gates', defs: [['ricochet', 'pierce', 'explosive'], ['loseDamage']] },
+  // G11 — good/bad, bad slot back on the RIGHT. Late RUST bites -2 levels.
+  { at: 34000, type: 'gates', levels: 2, levelCap: 3, defs: [
+    '@own', { key: 'rust', levels: -2 },
+  ] },
   { at: 34500, type: 'obstacles', layout: [
     { type: 'barrier', x: -145 }, { type: 'barrier', x: -35 }, { type: 'mine', x: 130 },
   ] },
@@ -303,8 +411,10 @@ const TIMELINE = [
   ] },
   { at: 36800, type: 'wave', entries: [{ type: 'mini', count: 12, pattern: 'random', stagger: 30 }] },   // big swarm
   { at: 37350, type: 'pickup', items: [{ kind: 'heal', x: 0 }] },
-  // G12 — mixed: risky blast build vs safe coverage.
-  { at: 37800, type: 'gates', defs: [['tradeBlastRisk', 'explosive'], ['spread', 'fireRate', 'crit']] },
+  // G12 — mixed: risky blast build (MIXED on the LEFT) vs doubling down.
+  { at: 37800, type: 'gates', levels: 2, levelCap: 3, defs: [
+    ['tradeOverpressure', 'blast'], '@own',
+  ] },
   // Dense minefield, only the right shoulder is clean.
   { at: 38250, type: 'obstacles', repeat: { times: 4, dz: 210 }, layout: [
     { type: 'mine', x: -140 }, { type: 'mine', x: -40 }, { type: 'mine', x: 60 },
@@ -324,8 +434,8 @@ const TIMELINE = [
     { type: 'shooter', count: 2, pattern: 'pincer', stagger: 0 },
   ] },
   { at: 41000, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'heal', x: 50 }] },
-  // G13 — hard good/good: more damage or more bodies.
-  { at: 41200, type: 'gates', defs: [['damage', 'multishot'], ['squad', 'fireRate']] },
+  // G13 — hard good/good: sharpen the spike, or open a whole new system.
+  { at: 41200, type: 'gates', levels: 2, levelCap: 3, defs: ['@own', '@new'] },
 
   // == ZONE 5 — PRE-BOSS CALM (41800-44400 | 167-178 s) ====================
   // Deliberately quiet: loot, top up HP, take one last big decision.
@@ -335,8 +445,11 @@ const TIMELINE = [
   { at: 42050, type: 'pickup', items: [{ kind: 'gem', x: 0 }], repeat: { times: 4, dz: 90 } },
   { at: 42500, type: 'wave', entries: [{ type: 'grunt', count: 3, pattern: 'line', stagger: 80 }] },
   { at: 43000, type: 'pickup', items: [{ kind: 'heal', x: -50 }, { kind: 'heal', x: 50 }] },
-  // G14 — final call: go all-in for boss DPS or buy survivability.
-  { at: 43400, type: 'gates', defs: [['tradeGlassCannon', 'damage'], ['maxHp', 'heal']] },
+  // G14 — final call: 3 levels into your best system for boss DPS, or buy
+  // survivability for the arena.
+  { at: 43400, type: 'gates', levels: 2, levelCap: 3, defs: [
+    { own: true, levels: 3 }, { pool: ['plating', 'aegis', 'repair'], levels: 2 },
+  ] },
   { at: 43800, type: 'pickup', items: [{ kind: 'heal', x: -60 }, { kind: 'heal', x: 60 }] },
   { at: 44250, type: 'pickup', items: [{ kind: 'gem', x: -70 }, { kind: 'gem', x: 0 }, { kind: 'gem', x: 70 }] },
   // Last 150 units before the run halts at BOSS_AT - 250: a shieldToken is 3 s
@@ -394,7 +507,8 @@ export function updateLevel(game, dt) {
         spawnWave(game, z, seg.entries);
         break;
       case 'gates':
-        spawnGateRow(game, z, resolveGateDefs(seg.defs));
+        // seg carries the row tier ({ levels, levelCap }); slots may override.
+        spawnGateRow(game, z, resolveGateDefs(game, seg.defs, seg));
         break;
       case 'obstacles':
         for (let r = 0; r < reps; r++) {

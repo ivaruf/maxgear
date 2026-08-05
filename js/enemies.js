@@ -6,10 +6,14 @@
 import { ROAD_HALF, DESPAWN_BEHIND } from './config.js';
 import { clamp, lerp, rand, randInt, chance } from './utils.js';
 import { project } from './render.js';
-import { fireEnemyShot } from './projectiles.js';
+import { fireEnemyShot, spawnShards } from './projectiles.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
-import { damagePlayer } from './player.js';
+// player.js imports killEnemy from HERE (aegis shock) — a deliberate runtime-only
+// ES-module cycle, documented at the top of player.js. Nothing below runs at
+// module-evaluation time, so both import orders are safe.
+import { damagePlayer, siphonHeal } from './player.js';
+import { trackLevel } from './upgrades.js';
 import { spawnPickup } from './pickups.js';
 
 const TAU = Math.PI * 2;
@@ -111,6 +115,10 @@ export function spawnEnemy(game, typeKey, x, z, opts = {}) {
     holdDist: t.holdRange ? rand(t.holdRange[0], t.holdRange[1]) : (t.holdDist ?? 0),
     lockX: 0, dashVx: 0, dashVz: 0,
     shieldHp, shieldMaxHp: shieldHp, shieldFlash: 0,
+    // status effects (design §C S2) — collisions.js APPLIES them, updateEnemies
+    // ticks them. burnTick/frostFxT are internal throttles.
+    burnT: 0, burnDps: 0, burnTick: 0, burnPips: 0,
+    chillT: 0, chillSlow: 0, chillMul: 1, frostFxT: 0,
     // boss
     bossPhase: 1, phaseFlash: 0, summonTimer: 0, slamTimer: 0, patternI: 0,
     burstKind: null, burstLeft: 0, burstN: 0, burstGap: 0.1, burstT: 0, burstI: 0,
@@ -498,6 +506,45 @@ function summonAdds(game, e) {
   fx.hitSpark(e.x, e.z - e.radius, '#c060ff');
 }
 
+// ---- status effects (design §C S2) ------------------------------------------
+// CRYO-VENT slows an enemy's WHOLE clock (movement, wind-ups, burst gaps, phase
+// timers) by scaling the dt its behavior sees plus its own age. Bosses are
+// floored at 0.7x so a frost build can never trivialise the arena.
+const BURN_STEP = 0.25;          // s per incendiary tick
+const FROST_FX_EVERY = 0.5;      // s between cryo puffs on one enemy
+const BURN_PIP_EVERY = 3;        // ember/number on every 3rd tick only
+
+function chillFactor(e) {
+  if (!(e.chillT > 0)) return 1;
+  const slow = clamp(e.chillSlow || 0, 0, 0.95);
+  return e.isBoss ? Math.max(0.7, 1 - slow * 0.5) : 1 - slow;
+}
+
+// INCENDIARY: fixed 0.25s ticks so the dps is frame-rate independent. Deaths go
+// through killEnemy with cause 'burn' (no shrapnel loop: shards use 'shrapnel').
+function tickBurn(game, e, dt) {
+  // Only the time the status actually has left may become ticks, so a burn can
+  // never over-deliver its last partial step (total damage <= burnDps*burnTime).
+  const step = Math.min(dt, e.burnT);
+  e.burnT -= dt;
+  e.burnTick += step;
+  const mul = e.isBoss && trackLevel(game.player, 'burn') >= 5 ? 1.5 : 1;
+  while (e.burnTick >= BURN_STEP && !e.dead) {
+    e.burnTick -= BURN_STEP;
+    const dmg = e.burnDps * BURN_STEP * mul;
+    if (!(dmg > 0)) break;
+    e.hp -= dmg;
+    e.burnPips = (e.burnPips + 1) % BURN_PIP_EVERY;
+    if (e.burnPips === 0) {                     // throttled: 1 ember + merged number
+      fx.hitSpark(e.x, e.z, MOLTEN);
+      const shown = Math.round(dmg);
+      if (shown > 0) fx.textPop(e.x, e.z + 12, `${shown}`, MOLTEN, e);
+    }
+    if (e.hp <= 0) { killEnemy(game, e, 'burn'); return; }
+  }
+  if (e.burnT <= 0) { e.burnT = 0; e.burnDps = 0; e.burnTick = 0; }
+}
+
 // ---- update -----------------------------------------------------------------
 export function updateEnemies(game, dt) {
   const list = game.enemies;
@@ -505,10 +552,26 @@ export function updateEnemies(game, dt) {
   for (let i = 0; i < n; i++) {
     const e = list[i];
     if (e.dead) continue;
-    e.age += dt;
+
+    // chill first: k scales everything the enemy experiences this step
+    if (e.chillT > 0) {
+      e.chillT -= dt;
+      e.chillMul = chillFactor(e);
+      e.frostFxT -= dt;
+      if (e.frostFxT <= 0) { e.frostFxT = FROST_FX_EVERY; fx.frostPuff(e.x, e.z); }
+      if (e.chillT <= 0) { e.chillT = 0; e.chillSlow = 0; }
+    } else {
+      e.chillMul = 1;
+    }
+    const k = e.chillMul;
+
+    e.age += dt * k;
+    // flashes are player feedback, not enemy time: they decay in real seconds
     e.flash = Math.max(0, e.flash - dt);
     e.shieldFlash = Math.max(0, e.shieldFlash - dt);
-    (behaviors[e.behavior] || behaviors.rush)(e, dt, game);
+    (behaviors[e.behavior] || behaviors.rush)(e, dt * k, game);
+    if (e.burnT > 0) tickBurn(game, e, dt);
+    if (e.dead) continue;
     // Passed behind the player: despawn silently (no damage, no reward)
     if (!e.isBoss && e.z < game.player.z - DESPAWN_BEHIND) e.dead = true;
   }
@@ -523,6 +586,10 @@ export function interceptShot(game, e, p) {
     fx.hitSpark(p.x, p.z, '#ffffff');
     return true;
   }
+  // LANCE LV5 (pierceShield): the spike punches through frontal plates entirely,
+  // so the shot falls through to normal hull damage. Checked AFTER the boss
+  // phase shield — that one is a scripted beat and nothing bypasses it.
+  if (p.pierceShield) return false;
   if (e.shieldHp <= 0) return false;
   if (p.vz <= 0) return false;                // hits from ahead bypass the plate
   const col = e.def.shieldColor || '#8fd6ff';
@@ -543,7 +610,33 @@ export function interceptShot(game, e, p) {
   return true;
 }
 
-// Central death hook — collisions.js calls this. cause: 'shot'|'explosion'|'contact'
+// INCENDIARY LV4 rider: a burning corpse lights its neighbours. Refresh, never
+// stack (the hottest dps and the longest timer win), and only enemies that are
+// ALREADY on the field — minis split by this same death stay clean, so a
+// splitter chain can never self-sustain a firestorm.
+function spreadBurn(game, e, stats) {
+  const r = stats.burnSpread;
+  const r2 = r * r;
+  const dps = e.burnDps;
+  const time = stats.burnTime || e.burnT;
+  if (!(dps > 0) || !(time > 0)) return;
+  let arcs = 3;                                  // fx budget: 3 visible jumps
+  const n = game.enemies.length;                 // snapshot length
+  for (let i = 0; i < n; i++) {
+    const o = game.enemies[i];
+    if (o === e || o.dead) continue;
+    const dx = o.x - e.x, dz = o.z - e.z;
+    if (dx * dx + dz * dz > r2) continue;
+    if (o.burnDps < dps) o.burnDps = dps;
+    if (o.burnT < time) o.burnT = time;
+    if (arcs-- > 0) fx.arc(e.x, e.z, o.x, o.z, MOLTEN, 1.6, 0.12);
+  }
+}
+
+// Central death hook — collisions.js calls this.
+// cause: 'shot' | 'explosion' | 'contact' | 'chain' | 'saw' | 'shrapnel' | 'burn'
+//   'shrapnel' is the ONE cause that suppresses a new death burst (one
+//   generation only); everything else spawns shards, siphons HP and spreads fire.
 export function killEnemy(game, e, cause = 'shot') {
   if (e.dead) return;
   e.dead = true;
@@ -552,6 +645,12 @@ export function killEnemy(game, e, cause = 'shot') {
   fx.explosion(e.x, e.z, e.radius * 1.4, e.color);
   fx.textPop(e.x, e.z, `+${e.score}`, e.elite ? ELITE.color : '#ffd166');
   audio.enemyDie();
+
+  // ---- on-death upgrade riders (design §C S7/S8 + INCENDIARY LV4) ----------
+  const stats = game.player.stats;
+  if (cause !== 'shrapnel' && stats.shrapnelN > 0) spawnShards(game, e, stats);
+  siphonHeal(game, e);
+  if (e.burnT > 0 && stats.burnSpread > 0) spreadBurn(game, e, stats);
 
   // splitter -> minis, spawned at the death site with slight x offsets.
   // Never closer than 70 ahead of the player: a point-blank split would put
@@ -620,6 +719,7 @@ const COPPER = '#b0652f';
 const COPPER_A = 'rgba(176,101,47,0.9)';
 const STEAM = 'rgb(230,225,215)';   // alpha applied through globalAlpha
 const MOLTEN = '#ff8a2a';           // heat bleeding out of cracks / furnaces
+const RIME = '#9fe8ff';             // cryo rim (matches effects.js frostPuff)
 const EMBER = '#ffd166';            // small warm lamps (matches the tank slit)
 const GEAR_ROOT = 0.74;             // unit-gear body radius under the teeth
 const GEAR_PATHS = new Map();
@@ -1276,6 +1376,29 @@ export function drawEnemies(ctx, view, game) {
     ctx.save();
     (SHAPES[e.type] || SHAPES.grunt)(ctx, e, r, k, p);
     ctx.restore();
+
+    // Status read (design §C S2): ONE generic block for every type — burning
+    // machines glow warm (additive), chilled ones wear a rime rim. No SHAPES
+    // edits, so a new enemy type inherits both for free.
+    if (e.burnT > 0) {
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.22 + 0.08 * Math.sin(e.age * 17 + e.phase);
+      ctx.fillStyle = MOLTEN;
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.05, 0, TAU);
+      ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+    }
+    if (e.chillT > 0) {
+      ctx.globalAlpha = 0.7;
+      ctx.strokeStyle = RIME;
+      ctx.lineWidth = Math.max(1.2, r * 0.1);
+      ctx.beginPath();
+      ctx.arc(0, 0, r * 1.12, 0, TAU);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
 
     // HP bar on tough types only (boss has the DOM bar), shield bar above it
     const bh = Math.max(3, 3.2 * k);
