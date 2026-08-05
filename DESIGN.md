@@ -83,10 +83,27 @@ and arena mode; victory = boss dead. Progress = `player.z / bossAt`.
 `audio.toggleMute()`, `audio.setBossMode(bool)`.
 Boss HP is DPS-scaled at spawn in main.js (~30s fight for any build) with an overheat-decay failsafe after 75s.
 
-## Visual direction
-Dusk synthwave: dark asphalt road, neon cyan player, warm-colored enemies (red/orange/magenta),
-gates as translucent glass panels — **blue/green = good, red = bad, purple = trade-off**. Bold flat
-geometric shapes, glow via shadowBlur used sparingly, damage numbers as floaters.
+## Visual direction — STEAMPUNK (v1.1 re-theme)
+Brass-and-iron Victorian machine age at dusk. The world is machinery: gears, rivets, pistons,
+pressure gauges, steam, smokestacks, drifting zeppelins, floating parallax cogs.
+
+**Color semantics ARE gameplay and MUST survive the re-theme** (only materials/shapes change):
+- player/allies/projectiles: aether cyan glow (existing `#35e0ff` family) — unchanged hexes
+- enemies: rusted red / copper / magenta family — unchanged hexes per type
+- gates: **green = good, red = bad, purple = trade-off**, gold = chargeable — unchanged hexes
+- Environment shifts to sepia/brass/iron: iron `#1a1512`, coal `#0f0c09`, brass `#c9973b`,
+  bright brass `#f0b429`, copper `#b0652f`, rust `#8a3324`, steam `rgba(230,225,215,α)`.
+
+Motifs: slow-rotating gears (drive rotation from entity `age` or `game.time` — never
+`Date.now()`), riveted plates, brass frames, pressure-gauge dials, steam puffs, copper piping.
+A giant brass clock-face sun on the horizon; industrial smokestack skyline; 1-2 distant zeppelins.
+
+Hard rules for the re-theme:
+- DRAW-ONLY + flavor text. No stat, radius, speed, spawn, or collision changes of any kind.
+- Keep every exported API/signature; keep hit-flash, HP bars, elite auras, telegraph reads.
+- Perf budget unchanged: bake sprites at resize, no new per-frame allocations in hot loops,
+  shadowBlur sparingly, respect LIMITS.
+- Boss renamed **IRONCLAD** (`ENEMY_TYPES.boss.name` + victory-screen copy).
 
 ## File ownership
 ```

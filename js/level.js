@@ -332,13 +332,14 @@ export function createLevel() {
 }
 
 // Zone names shown as the HUD act chip (ui.js reads game.level.actLabel)
+// Short names: the HUD act chip must not truncate on 360px-wide screens
 const ACTS = [
-  [0, 'ACT 1 · WARM-UP'],
-  [4000, 'ACT 2 · THE RAMP'],
-  [24850, 'ACT 3 · THE WALL'],
-  [27350, 'ACT 4 · DEEP RUN'],
-  [41800, 'ACT 5 · FINAL APPROACH'],
-  [44740, 'WARLORD'],
+  [0, 'ACT 1 · IGNITION'],
+  [4000, 'ACT 2 · FULL STEAM'],
+  [24850, 'ACT 3 · IRON WALL'],
+  [27350, 'ACT 4 · GEARWORKS'],
+  [41800, 'ACT 5 · LAST MILE'],
+  [44740, 'IRONCLAD'],
 ];
 
 export function updateLevel(game, dt) {

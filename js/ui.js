@@ -1,6 +1,8 @@
 // DOM HUD + screens. UI/AUDIO-AGENT OWNS THIS FILE.
 // The only module allowed to touch the DOM besides main.js bootstrap.
 // No top-level DOM access: every lookup happens inside ui.init().
+// Presentation is brass/iron (see css/style.css) but every id, class hook and
+// game field read here is unchanged — this module is pure plumbing.
 
 import { levelProgress } from './level.js';
 import { BASE_STATS, PLAYER_DEFAULTS } from './config.js';
@@ -225,7 +227,8 @@ export const ui = {
     if (boss && !boss.dead) {
       const frac = Math.max(boss.hp / boss.maxHp, 0);
       els.bossWrap.classList.remove('hidden');
-      els.bossName.textContent = (boss.def && boss.def.name) || 'BOSS';
+      // display name is data-driven (enemies.js owns boss.def.name = IRONCLAD)
+      els.bossName.textContent = (boss.def && boss.def.name) || 'IRONCLAD';
       els.bossBar.style.width = `${frac * 100}%`;
       // phase thresholds are the 66% / 33% ticks drawn on the bar; enemies.js
       // owns boss.bossPhase (monotonic) — fall back to the raw fraction.

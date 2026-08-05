@@ -103,11 +103,34 @@ export function healPlayer(game, amount) {
   fx.textPop(p.x, p.z + 30, `+${Math.round(amount)}`, '#3ddc84');
 }
 
-function drawShip(ctx, sx, sy, s, color, glow) {
+// Steampunk gyro-wedge: aether-glow hull (silhouette unchanged for readability),
+// brass trim, porthole cockpit, and a spinning brass tail gear driven by t.
+function drawShip(ctx, sx, sy, s, color, glow, t = 0) {
   ctx.save();
   ctx.translate(sx, sy);
+
+  // Tail gear (behind the hull), slowly counter-rotating
+  ctx.save();
+  ctx.translate(0, 8 * s);
+  ctx.rotate(t * 2.4);
+  ctx.fillStyle = '#c9973b';
+  const R = 6.5 * s, r = 4.6 * s;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a0 = (i / 8) * Math.PI * 2, a1 = a0 + Math.PI / 8;
+    ctx.arc(0, 0, R, a0, a0 + Math.PI / 16);
+    ctx.arc(0, 0, r, a1, a1 + Math.PI / 8);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8a6a2a';
+  ctx.beginPath();
+  ctx.arc(0, 0, 1.8 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
   if (glow) { ctx.shadowColor = color; ctx.shadowBlur = 14; }
-  // Hull: arrow-like wedge
+  // Hull: arrow-like wedge (same silhouette as pre-retheme)
   ctx.fillStyle = color;
   ctx.beginPath();
   ctx.moveTo(0, -18 * s);
@@ -116,11 +139,19 @@ function drawShip(ctx, sx, sy, s, color, glow) {
   ctx.lineTo(-13 * s, 10 * s);
   ctx.closePath();
   ctx.fill();
-  // Cockpit
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.shadowBlur = 0;
+  // Brass trim along the hull edges
+  ctx.strokeStyle = 'rgba(240,180,41,0.85)';
+  ctx.lineWidth = Math.max(1, 1.3 * s);
+  ctx.stroke();
+  // Porthole cockpit: brass ring around glass
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
   ctx.beginPath();
-  ctx.arc(0, -4 * s, 3.6 * s, 0, Math.PI * 2);
+  ctx.arc(0, -4 * s, 3.4 * s, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = '#c9973b';
+  ctx.lineWidth = Math.max(1, 1.1 * s);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -131,7 +162,7 @@ export function drawPlayer(ctx, view, game) {
   // Squad first (behind)
   for (const o of squadOffsets(p.stats.squad)) {
     const pos = project(view, clamp(p.x + o.dx, -ROAD_HALF, ROAD_HALF), p.z + o.dz);
-    drawShip(ctx, pos.sx, pos.sy, pos.f * view.unitScale * 0.8, '#2fb8d6', false);
+    drawShip(ctx, pos.sx, pos.sy, pos.f * view.unitScale * 0.8, '#2fb8d6', false, game.time + o.dx);
   }
 
   const { sx, sy, f } = project(view, p.x, p.z);
@@ -150,6 +181,6 @@ export function drawPlayer(ctx, view, game) {
   } else if (p.invuln > 0 && Math.floor(p.invuln * 20) % 2 === 0) {
     ctx.globalAlpha = 0.35;
   }
-  drawShip(ctx, sx, sy, s, p.hurtFlash > 0 ? '#ff8090' : '#35e0ff', true);
+  drawShip(ctx, sx, sy, s, p.hurtFlash > 0 ? '#ff8090' : '#35e0ff', true, game.time);
   ctx.globalAlpha = 1;
 }

@@ -3,8 +3,9 @@
 *The ad was fake. This one is real.*
 
 A polished browser arcade lane-shooter inspired by the "misleading mobile game ad" genre —
-auto-fire down a neon highway, steer through upgrade gates, multiply your firepower,
-mow down escalating enemy waves, and take down the WARLORD at the end of a ~3-minute run.
+auto-fire down a brass-and-iron steampunk highway, steer through upgrade gates, multiply your
+firepower, mow down waves of clockwork machines, and take down the IRONCLAD at the end of a
+~3-minute run — under a giant clock-face sun, drifting zeppelins, and flying gears.
 
 No frameworks, no build step, no assets, no network calls: vanilla JS ES modules + Canvas 2D,
 procedural graphics, and Web Audio synthesized sound.
@@ -103,7 +104,7 @@ js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative mu
 | **Mini** | tiny, quick, weak — swarms and splitter spawn |
 | **Charger** | plants itself, telegraphs 0.7s, then dashes at your locked position — sidestep it |
 | **Elite** (modifier) | any type: 2.5× HP, 1.3× size, gold aura, guaranteed heal drop |
-| **WARLORD** (boss) | 3 phases: aimed volleys → sweeping barrages → enraged fans + telegraphed lane slams; summons capped adds that drop heals; brief shield at each phase flip. HP scales to your actual DPS so the fight lasts ~30s for any build. |
+| **IRONCLAD** (boss) | giant clockwork war engine, 3 phases: aimed volleys → sweeping barrages → enraged fans + telegraphed lane slams; summons capped adds that drop heals; brief shield at each phase flip. HP scales to your actual DPS so the fight lasts ~30s for any build. |
 
 ## Upgrades (gates)
 

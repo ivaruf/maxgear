@@ -7,10 +7,10 @@
 // shapes are built upward (negative y) and appear to stand on the asphalt.
 //
 // Type geometry read (kept deliberately distinct at a glance):
-//   crate   = wooden box with planks          -> shoot it, it drops loot
-//   barrier = 3 concrete segments + chevrons  -> shoot through or steer around
-//   spikes  = metal triangles on a base plate -> indestructible, steer around
-//   mine    = disc + blinking red lamp        -> pops and blasts what's near it
+//   crate   = wooden crate, brass corner caps -> shoot it, it drops loot
+//   barrier = 3 riveted iron plate segments   -> shoot through or steer around
+//   spikes  = gear teeth on a riveted plate   -> indestructible, steer around
+//   mine    = clockwork bomb + blinking lamp  -> pops and blasts what's near it
 
 import { DESPAWN_BEHIND } from './config.js';
 import { chance, dist2 } from './utils.js';
@@ -137,6 +137,72 @@ export function obstacleContact(game, o) {
 }
 
 // ---- drawing ----------------------------------------------------------------
+// STEAMPUNK materials (draw-only). Silhouettes, footprints and every telegraph
+// (HP bar, cracks, tip glints, blast ring) are unchanged — only the surfaces
+// became wood-and-brass / riveted iron / clockwork.
+const TAU = Math.PI * 2;
+const BRASS = '#c9973b';
+const BRASS_HI = '#f0b429';
+const BRASS_LO = '#6f5220';
+const IRON_DK = '#241e18';
+
+// Cog silhouette baked ONCE at unit radius, scaled at draw time (no per-frame
+// path building). Path2D is guarded so the module still imports without a DOM.
+function cogPath(teeth, rTip, rRoot, rHole) {
+  const p = new Path2D();
+  const step = TAU / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const a0 = a - step * 0.32, a1 = a - step * 0.15;
+    const a2 = a + step * 0.15, a3 = a + step * 0.32;
+    p[i === 0 ? 'moveTo' : 'lineTo'](Math.cos(a0) * rRoot, Math.sin(a0) * rRoot);
+    p.lineTo(Math.cos(a1) * rTip, Math.sin(a1) * rTip);
+    p.lineTo(Math.cos(a2) * rTip, Math.sin(a2) * rTip);
+    p.lineTo(Math.cos(a3) * rRoot, Math.sin(a3) * rRoot);
+  }
+  p.closePath();
+  if (rHole > 0) {              // reverse-wound subpath = hub hole
+    p.moveTo(rHole, 0);
+    p.arc(0, 0, rHole, 0, TAU, true);
+    p.closePath();
+  }
+  return p;
+}
+const COG = typeof Path2D !== 'undefined' ? cogPath(8, 1, 0.7, 0.28) : null;
+
+// Gear ornament, rotation driven by obstacle age (never Date.now()).
+function drawCog(ctx, x, y, r, rot, fill) {
+  if (r < 1.2) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(r, r);
+  ctx.fillStyle = fill;
+  if (COG) ctx.fill(COG);
+  else { ctx.beginPath(); ctx.arc(0, 0, 1, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+// Domed brass rivet.
+function rivet(ctx, x, y, r) {
+  if (r < 0.85) return;   // sub-pixel at distance: not worth the two arcs
+  ctx.fillStyle = 'rgba(40,28,10,0.8)';
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = BRASS_HI;
+  ctx.beginPath();
+  ctx.arc(x - r * 0.2, y - r * 0.24, r * 0.52, 0, TAU);
+  ctx.fill();
+}
+
+// Evenly spaced rivet run along a horizontal edge (count bounded for perf).
+function rivetRow(ctx, x0, x1, y, r, n) {
+  if (r < 0.85) return;
+  const span = x1 - x0;
+  for (let i = 0; i < n; i++) rivet(ctx, x0 + (span * (i + 0.5)) / n, y, r);
+}
+
 function groundShadow(ctx, rx) {
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.38)';
@@ -147,6 +213,7 @@ function groundShadow(ctx, rx) {
 }
 
 const DRAW = {
+  // Steamer crate: same wooden box (same hexes), now strapped in brass.
   crate(ctx, o, k) {
     const w = o.radius * 2 * k;
     const h = o.def.height * k;
@@ -165,6 +232,31 @@ const DRAW = {
     ctx.moveTo(-w / 2, -h * 0.3); ctx.lineTo(w / 2, -h * 0.3);
     ctx.moveTo(-w / 2, -h * 0.06); ctx.lineTo(w / 2, -h * 0.88);
     ctx.stroke();
+    // Brass shipping band across the middle
+    ctx.fillStyle = lit ? '#ffffff' : BRASS_LO;
+    ctx.fillRect(-w / 2, -h * 0.52, w, h * 0.11);
+    ctx.fillStyle = lit ? '#ffffff' : BRASS;
+    ctx.fillRect(-w / 2, -h * 0.52, w, h * 0.06);
+    // Brass corner caps (L plates) + rivets
+    const cs = Math.min(w, h) * 0.26;
+    const ct = Math.max(1, cs * 0.32);
+    ctx.fillStyle = lit ? '#ffffff' : BRASS;
+    for (let i = 0; i < 4; i++) {
+      const left = i % 2 === 0;
+      const topRow = i < 2;
+      ctx.fillRect(left ? -w / 2 : w / 2 - cs, topRow ? -h : -ct, cs, ct);
+      ctx.fillRect(left ? -w / 2 : w / 2 - ct, topRow ? -h : -cs, ct, cs);
+    }
+    if (!lit) {
+      const rv = ct * 0.4;
+      for (let i = 0; i < 4; i++) {
+        const left = i % 2 === 0;
+        const topRow = i < 2;
+        rivet(ctx, left ? -w / 2 + ct * 0.9 : w / 2 - ct * 0.9,
+          topRow ? -h + ct * 0.9 : -ct * 0.9, rv);
+      }
+      rivet(ctx, 0, -h * 0.465, h * 0.035);
+    }
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.lineWidth = Math.max(1, w * 0.05);
     ctx.strokeRect(-w / 2, -h, w, h);
@@ -193,19 +285,39 @@ const DRAW = {
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
       ctx.lineWidth = Math.max(1, w * 0.018);
       ctx.stroke();
-      // Hazard chevrons, clipped inside the block path we just built
+      // Everything below is clipped inside the block path we just built
       ctx.save();
       ctx.clip();
-      ctx.strokeStyle = 'rgba(255,196,61,0.8)';
+      // Riveted iron plate: shaded lower body, bright top edge, rivet rows
+      ctx.fillStyle = 'rgba(16,20,26,0.28)';
+      ctx.fillRect(x0, -h * 0.42, sw, h * 0.42);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fillRect(x0, -h, sw, Math.max(1, h * 0.05));
+      // Brass hazard plate bolted across the segment (was painted chevrons —
+      // same gold-on-dark diagonal read, now a plate)
+      const pY = -h * 0.78, pH = h * 0.56;
+      ctx.fillStyle = lit ? '#ffffff' : 'rgba(201,151,59,0.92)';
+      ctx.fillRect(x0, pY, sw, pH);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, pY, sw, pH);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(26,21,18,0.82)';
       ctx.lineWidth = Math.max(1.5, sw * 0.15);
       ctx.beginPath();
       for (let s = -1; s <= 2; s++) {
         const bx = x0 + sw * (0.1 + s * 0.4);
-        ctx.moveTo(bx, 0);
-        ctx.lineTo(bx + sw * 0.36, -h);
+        ctx.moveTo(bx, pY + pH);
+        ctx.lineTo(bx + pH * 0.66, pY);
       }
       ctx.stroke();
       ctx.restore();
+      ctx.strokeStyle = 'rgba(26,21,18,0.5)';
+      ctx.lineWidth = Math.max(1, w * 0.012);
+      ctx.strokeRect(x0, pY, sw, pH);
+      const rv = sw * 0.045;
+      rivetRow(ctx, x0, x0 + sw, pY + rv * 1.8, rv, 3);
+      rivetRow(ctx, x0, x0 + sw, pY + pH - rv * 1.8, rv, 3);
       // Cracks appear as the wall gives way
       if (frac < 0.6) {
         ctx.strokeStyle = 'rgba(10,12,20,0.75)';
@@ -217,10 +329,13 @@ const DRAW = {
         ctx.lineTo(x0 + sw * 0.44, -h);
         ctx.stroke();
       }
+      ctx.restore();
     }
-    // Bright top rail: the "wall" cue, visible from far away
-    ctx.fillStyle = lit ? '#ffffff' : '#e8edf5';
+    // Bright top rail: the "wall" cue, visible from far away (brass-capped)
+    ctx.fillStyle = lit ? '#ffffff' : '#eadfc6';
     ctx.fillRect(-w / 2, -h - h * 0.1, w, h * 0.1);
+    ctx.fillStyle = lit ? '#ffffff' : BRASS_LO;
+    ctx.fillRect(-w / 2, -h - h * 0.02, w, h * 0.02);
     // HP read-out so "keep shooting, it is nearly down" is legible
     if (frac < 1) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -230,39 +345,57 @@ const DRAW = {
     }
   },
 
+  // Upturned GEAR TEETH on a riveted base plate: same 5-tooth strip, same
+  // height envelope, same tip glints — still "do not touch".
   spikes(ctx, o, k) {
     const w = o.radius * 2 * k;
     const h = o.def.height * k;
     groundShadow(ctx, w * 0.55);
+    // Half-buried cog rim the teeth belong to
+    ctx.fillStyle = IRON_DK;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.5, h * 0.62, 0, Math.PI, TAU);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(201,151,59,0.45)';
+    ctx.lineWidth = Math.max(1, h * 0.05);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, w * 0.5, h * 0.62, 0, Math.PI, TAU);
+    ctx.stroke();
     // Bolted base plate (signals "welded to the road, not shootable")
-    ctx.fillStyle = '#2c3245';
+    ctx.fillStyle = '#2a241d';
     ctx.fillRect(-w / 2, -h * 0.18, w, h * 0.18);
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';
-    for (let i = 0; i < 4; i++) {
-      ctx.fillRect(-w / 2 + w * (0.12 + i * 0.25), -h * 0.14, w * 0.035, h * 0.07);
-    }
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fillRect(-w / 2, -h * 0.18, w, Math.max(1, h * 0.03));
     const N = 5;
     const bw = (w / N) * 0.88;
     for (let i = 0; i < N; i++) {
       const cx = -w / 2 + (w * (i + 0.5)) / N;
-      // Two-tone faces = metal, not a flat triangle
+      const tw = bw * 0.19;          // flat gear-tooth tip
+      const yb = -h * 0.12;
+      // Two-tone flanks = machined metal, not a flat triangle
       ctx.beginPath();
-      ctx.moveTo(cx, -h);
-      ctx.lineTo(cx - bw / 2, -h * 0.12);
-      ctx.lineTo(cx, -h * 0.12);
+      ctx.moveTo(cx - tw, -h);
+      ctx.quadraticCurveTo(cx - bw * 0.42, -h * 0.55, cx - bw / 2, yb);
+      ctx.lineTo(cx, yb);
+      ctx.lineTo(cx, -h);
       ctx.closePath();
       ctx.fillStyle = o.def.color;
       ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(cx, -h);
-      ctx.lineTo(cx + bw / 2, -h * 0.12);
-      ctx.lineTo(cx, -h * 0.12);
+      ctx.moveTo(cx + tw, -h);
+      ctx.quadraticCurveTo(cx + bw * 0.42, -h * 0.55, cx + bw / 2, yb);
+      ctx.lineTo(cx, yb);
+      ctx.lineTo(cx, -h);
       ctx.closePath();
       ctx.fillStyle = '#5b6478';
       ctx.fill();
       // Tip glint
       ctx.fillStyle = 'rgba(255,255,255,0.9)';
       ctx.fillRect(cx - bw * 0.06, -h, bw * 0.12, h * 0.14);
+    }
+    // Rivets on the front face of the plate, below the tooth roots
+    for (let i = 0; i < 4; i++) {
+      rivet(ctx, -w / 2 + w * (0.14 + i * 0.25), -h * 0.06, w * 0.022);
     }
   },
 
@@ -281,8 +414,8 @@ const DRAW = {
     ctx.stroke();
     ctx.restore();
     groundShadow(ctx, r * 1.05);
-    // Prongs + antenna
-    ctx.strokeStyle = '#5a6478';
+    // Brass prongs/pistons + antenna
+    ctx.strokeStyle = BRASS_LO;
     ctx.lineWidth = Math.max(1, r * 0.18);
     ctx.beginPath();
     for (const s of [-1, 1]) {
@@ -291,6 +424,12 @@ const DRAW = {
     }
     ctx.moveTo(0, -r * 0.62); ctx.lineTo(0, -r * 1.15);
     ctx.stroke();
+    ctx.fillStyle = BRASS;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(s * r * 1.2, -r * 0.34, Math.max(0.8, r * 0.13), 0, TAU);
+      ctx.fill();
+    }
     // Squat disc lying on the asphalt
     ctx.fillStyle = o.flash > 0 ? '#ffffff' : o.def.color;
     ctx.beginPath();
@@ -299,9 +438,46 @@ const DRAW = {
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.lineWidth = Math.max(1, r * 0.1);
     ctx.stroke();
+    // Brass equator band + rim rivets: a riveted clockwork casing
+    ctx.strokeStyle = BRASS;
+    ctx.lineWidth = Math.max(1, r * 0.09);
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 0.3, r * 0.84, r * 0.36, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    const mrv = r * 0.09;
+    if (mrv >= 0.85) {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * TAU + 0.3;
+        rivet(ctx, Math.cos(a) * r * 0.92, -r * 0.3 + Math.sin(a) * r * 0.4, mrv);
+      }
+    }
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.beginPath();
     ctx.ellipse(0, -r * 0.42, r * 0.62, r * 0.24, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Clockwork: escapement cog + a wind-up key turning on top (from o.age)
+    drawCog(ctx, r * 0.44, -r * 0.5, r * 0.28, o.age * 0.9, BRASS);
+    const kx = -r * 0.48, ky = -r * 0.74;
+    const rot = o.age * 1.2;
+    const wl = r * 0.3;
+    const kc = Math.cos(rot), ks = Math.sin(rot) * 0.42;
+    ctx.strokeStyle = BRASS;
+    ctx.lineWidth = Math.max(1, r * 0.1);
+    ctx.beginPath();
+    ctx.moveTo(kx, ky + r * 0.18);
+    ctx.lineTo(kx, ky);
+    ctx.moveTo(kx - kc * wl, ky - ks * wl);
+    ctx.lineTo(kx + kc * wl, ky + ks * wl);
+    ctx.stroke();
+    ctx.fillStyle = BRASS_HI;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.arc(kx + s * kc * wl, ky + s * ks * wl, Math.max(0.8, r * 0.11), 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = BRASS_LO;
+    ctx.beginPath();
+    ctx.arc(kx, ky, Math.max(0.8, r * 0.07), 0, TAU);
     ctx.fill();
     // Blinking red lamp
     if (blink) { ctx.shadowColor = '#ff2b3d'; ctx.shadowBlur = r * 1.4; }

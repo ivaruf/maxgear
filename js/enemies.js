@@ -71,7 +71,7 @@ export const ENEMY_TYPES = {
     // hpScale computed from the player's ACTUAL dps (clamped 4k..45k) so the
     // fight lasts ~30s for any build; behaviors.boss adds a decay failsafe.
     hp: 3200, speed: 120, damage: 40, radius: 55, score: 1500,
-    color: '#b23bc9', behavior: 'boss', dropChance: 0, isBoss: true, name: 'WARLORD',
+    color: '#b23bc9', behavior: 'boss', dropChance: 0, isBoss: true, name: 'IRONCLAD',
     shotSpeed: 440, shotDamage: 12, shotColor: '#ff7ad9',
     // hp thirds -> phase index; every phase is a clean tuning block
     phases: [
@@ -600,30 +600,180 @@ export function enemyContact(game, e) {
 }
 
 // ---- drawing ----------------------------------------------------------------
-// Every type gets its own silhouette. Called inside a save/restore already
-// translated to the enemy's screen position; r is the drawn radius in px.
+// STEAMPUNK pass (v1.1). Draw-only: no stat/radius/behavior value is read here
+// that was not read before. Rules obeyed by everything below:
+//   * every type keeps its own e.color family — brass/iron/copper are accents
+//   * ALL rotation comes from e.age (never Date.now), so it is pause- and
+//     replay-safe and scales with the entity's own lifetime
+//   * gear outlines are unit-radius Path2D objects, built once per tooth count
+//     and reused via scale()/rotate() — nothing allocates in the draw loop
+//   * hit flash, HP/shield bars, elite aura and every telegraph read are intact
+//   * shadowBlur stays where it already was (boss core only)
+//
+// Palette: accents only. Environment iron (#1a1512) is too dark to read as a
+// silhouette against the road, so enemy ironwork uses the dusk-lit tint of it.
+const IRON = '#4b3a2c';
+const COAL = '#0f0c09';             // cavities, sockets, gun ports
+const BRASS = '#c9973b';
+const BRASS_HI = '#f0b429';
+const COPPER = '#b0652f';
+const COPPER_A = 'rgba(176,101,47,0.9)';
+const STEAM = 'rgb(230,225,215)';   // alpha applied through globalAlpha
+const MOLTEN = '#ff8a2a';           // heat bleeding out of cracks / furnaces
+const EMBER = '#ffd166';            // small warm lamps (matches the tank slit)
+const GEAR_ROOT = 0.74;             // unit-gear body radius under the teeth
+const GEAR_PATHS = new Map();
+
+// Unit-radius gear outline, cached per tooth count. Built lazily so this module
+// still imports outside a browser (Path2D is a canvas API) and so there is no
+// top-level side effect.
+function gearPath(teeth) {
+  let p = GEAR_PATHS.get(teeth);
+  if (p !== undefined) return p;
+  p = null;
+  if (typeof Path2D !== 'undefined') {
+    p = new Path2D();
+    const step = TAU / teeth;
+    for (let i = 0; i < teeth; i++) {
+      const a = i * step;
+      const a0 = a - step * 0.30, a1 = a - step * 0.16;
+      const a2 = a + step * 0.16, a3 = a + step * 0.30;
+      const x0 = Math.cos(a0) * GEAR_ROOT, y0 = Math.sin(a0) * GEAR_ROOT;
+      if (i === 0) p.moveTo(x0, y0); else p.lineTo(x0, y0);
+      p.lineTo(Math.cos(a1), Math.sin(a1));
+      p.lineTo(Math.cos(a2), Math.sin(a2));
+      p.lineTo(Math.cos(a3) * GEAR_ROOT, Math.sin(a3) * GEAR_ROOT);
+    }
+    p.closePath();
+  }
+  GEAR_PATHS.set(teeth, p);
+  return p;
+}
+
+// Toothed disc of radius r spun by `rot` radians about the current origin.
+function drawGear(ctx, r, rot, teeth, fill) {
+  const p = gearPath(teeth);
+  ctx.save();
+  ctx.rotate(rot);
+  ctx.scale(r, r);
+  ctx.fillStyle = fill;
+  if (p) ctx.fill(p);
+  ctx.beginPath();                  // solid body beneath the teeth
+  ctx.arc(0, 0, GEAR_ROOT, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+function disc(ctx, x, y, rad, color) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, rad, 0, TAU);
+  ctx.fill();
+}
+
+// Bolt heads along an arc (pass from/to spanning TAU*(n-1)/n for a full ring).
+function rivetArc(ctx, cx, cy, rad, from, to, n, dotR, color) {
+  ctx.fillStyle = color;
+  for (let i = 0; i < n; i++) {
+    const a = n > 1 ? from + (to - from) * (i / (n - 1)) : from;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad, dotR, 0, TAU);
+    ctx.fill();
+  }
+}
+
+function rivetRow(ctx, x0, y0, x1, y1, n, dotR, color) {
+  ctx.fillStyle = color;
+  for (let i = 0; i < n; i++) {
+    const t = n > 1 ? i / (n - 1) : 0.5;
+    ctx.beginPath();
+    ctx.arc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, dotR, 0, TAU);
+    ctx.fill();
+  }
+}
+
+// Rising steam. Phase comes from the entity's own age (never a wall clock), so
+// puffs are deterministic and cost one fillStyle + n arcs.
+function steamPuff(ctx, x, y, size, age, n, rise, seed, maxAlpha) {
+  ctx.fillStyle = STEAM;
+  for (let i = 0; i < n; i++) {
+    let t = (age * 0.5 + seed + i / n) % 1;
+    if (t < 0) t += 1;
+    ctx.globalAlpha = maxAlpha * (1 - t) * (t < 0.15 ? t / 0.15 : 1);
+    ctx.beginPath();
+    ctx.arc(x + Math.sin((t + seed) * 5.4) * size * 0.7, y - t * rise,
+      size * (0.4 + t * 1.1), 0, TAU);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// Warm lamp glow built from stacked alpha discs — keeps shadowBlur off the
+// per-enemy path (only the boss core is allowed to blur).
+function furnaceEye(ctx, x, y, rad, color, alpha) {
+  ctx.globalAlpha = alpha * 0.28;
+  disc(ctx, x, y, rad * 1.9, color);
+  ctx.globalAlpha = alpha * 0.55;
+  disc(ctx, x, y, rad * 1.35, color);
+  ctx.globalAlpha = alpha;
+  disc(ctx, x, y, rad, color);
+  ctx.globalAlpha = 1;
+}
+
+// Screen-space swing for a barrel that tracks the player. Enemy shapes face +y
+// (player-ward), so this is a small rotation about the mount point.
+function aimAngle(e, p) {
+  if (!p) return 0;
+  return clamp(Math.atan2(e.x - p.x, Math.max(e.z - p.z, 80)) * 1.4, -0.7, 0.7);
+}
+
+// Detail LOD: below this drawn radius a rivet/steam puff is sub-pixel noise, so
+// far-away machines draw silhouette only. Keeps the op count near the old art
+// for the crowded far half of the road; silhouettes/telegraphs never change.
+const FINE = 12;
+
+// Every type gets its own silhouette. Signature (ctx, e, r, k, p): called inside
+// a save/restore already translated to the enemy's screen position, r is the
+// drawn radius in px, k is px-per-world-unit, p is the player (aim tracking).
+// Player-ward is +y for every shape.
 const SHAPES = {
+  // rolling cog-bot: the body IS a gear, one glowing porthole eye
   grunt(ctx, e, r) {
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    const metal = e.flash > 0 ? '#ffffff' : IRON;
+    const rot = e.age * 0.9;                                  // slow roll
+    ctx.fillStyle = metal;                                    // axle stubs (old shoulders)
+    ctx.fillRect(-r * 1.28, -r * 0.15, r * 0.44, r * 0.75);
+    ctx.fillRect(r * 0.84, -r * 0.15, r * 0.44, r * 0.75);
+    drawGear(ctx, r, rot, 10, body);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';                       // underside shade (kept)
     ctx.beginPath();
-    ctx.arc(0, 0, r, 0, TAU);
+    ctx.arc(0, r * 0.24, r * 0.74, 0, Math.PI);
     ctx.fill();
-    ctx.fillRect(-r * 1.05, -r * 0.15, r * 0.34, r * 0.75);   // hunched shoulders
-    ctx.fillRect(r * 0.71, -r * 0.15, r * 0.34, r * 0.75);
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.strokeStyle = e.flash > 0 ? '#ffffff' : BRASS;        // brass rim
+    ctx.lineWidth = Math.max(1, r * 0.08);
     ctx.beginPath();
-    ctx.arc(0, r * 0.22, r * 0.85, 0, Math.PI);
-    ctx.fill();
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.arc(-r * 0.32, r * 0.12, r * 0.17, 0, TAU);
-    ctx.arc(r * 0.32, r * 0.12, r * 0.17, 0, TAU);
-    ctx.fill();
+    ctx.arc(0, 0, r * 0.6, 0, TAU);
+    ctx.stroke();
+    if (r > FINE) {
+      rivetArc(ctx, 0, 0, r * 0.6, rot, rot + TAU * (5 / 6), 6, r * 0.07,
+        e.flash > 0 ? '#ffffff' : BRASS_HI);
+    }
+    disc(ctx, 0, r * 0.1, r * 0.3, COAL);                     // porthole socket
+    if (r > FINE) furnaceEye(ctx, 0, r * 0.1, r * 0.14, EMBER, 1);   // single glowing eye
+    else disc(ctx, 0, r * 0.1, r * 0.16, EMBER);
   },
 
+  // steam dart: riveted needle hull, pumping side pistons, nose propeller
   runner(ctx, e, r) {
-    ctx.rotate(Math.cos(e.age * e.def.zigFreq + e.phase) * 0.3);
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;
+    ctx.rotate(Math.cos(e.age * e.def.zigFreq + e.phase) * 0.3);   // motion lean (kept)
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    const metal = e.flash > 0 ? '#ffffff' : IRON;
+    const travel = Math.sin(e.age * 15 + e.phase) * r * 0.13;      // piston travel
+    ctx.fillStyle = metal;
+    ctx.fillRect(-r * 0.94, -r * 0.32 + travel, r * 0.26, r * 0.68);
+    ctx.fillRect(r * 0.68, -r * 0.32 - travel, r * 0.26, r * 0.68);
+    ctx.fillStyle = body;                                          // dart hull (same outline)
     ctx.beginPath();
     ctx.moveTo(0, r * 1.2);
     ctx.lineTo(r * 0.82, -r * 0.35);
@@ -631,25 +781,63 @@ const SHAPES = {
     ctx.lineTo(-r * 0.82, -r * 0.35);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.34)';
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : 'rgba(255,236,190,0.42)';   // brass spine fin
     ctx.beginPath();
     ctx.moveTo(-r * 0.26, -r * 0.2);
     ctx.lineTo(0, -r * 1.15);
     ctx.lineTo(r * 0.26, -r * 0.2);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = DARK;
+    if (r > FINE) {
+      rivetRow(ctx, -r * 0.3, r * 0.14, -r * 0.08, r * 0.88, 3, r * 0.065, 'rgba(0,0,0,0.45)');
+      rivetRow(ctx, r * 0.3, r * 0.14, r * 0.08, r * 0.88, 3, r * 0.065, 'rgba(0,0,0,0.45)');
+    }
+    disc(ctx, 0, r * 0.42, r * 0.17, COAL);                        // porthole
+    disc(ctx, 0, r * 0.42, r * 0.07, EMBER);
+    ctx.save();                                                    // nose propeller
+    ctx.translate(0, r * 1.06);
+    ctx.rotate(e.age * 17);
+    if (r > FINE) {                                                // spin blur
+      ctx.globalAlpha = 0.1;
+      disc(ctx, 0, 0, r * 0.5, STEAM);
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : BRASS_HI;
     ctx.beginPath();
-    ctx.arc(0, r * 0.42, r * 0.17, 0, TAU);
+    ctx.ellipse(0, 0, r * 0.5, r * 0.11, 0, 0, TAU);
     ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.11, r * 0.5, 0, 0, TAU);
+    ctx.fill();
+    disc(ctx, 0, 0, r * 0.13, IRON);
+    ctx.restore();
   },
 
+  // boiler juggernaut: iron slab, boiler dome, venting stack, furnace slit
   tank(ctx, e, r) {
     const w = r * 1.2, h = r * 0.95;
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';                        // treads
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    const metal = e.flash > 0 ? '#ffffff' : IRON;
+    ctx.fillStyle = metal;                                    // smokestack (behind the slab)
+    ctx.fillRect(-w * 0.75, -h * 1.85, w * 0.26, h * 0.95);
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : BRASS;
+    ctx.fillRect(-w * 0.81, -h * 1.94, w * 0.38, h * 0.15);
+    if (r > FINE) {                                           // faint steam wisp
+      steamPuff(ctx, -w * 0.62, -h * 1.98, r * 0.26, e.age, 3, r * 1.7, e.phase / TAU, 0.15);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';                        // treads (kept)
     ctx.fillRect(-w - r * 0.24, -h * 0.7, r * 0.3, h * 1.5);
     ctx.fillRect(w - r * 0.06, -h * 0.7, r * 0.3, h * 1.5);
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;        // angular slab
+    ctx.fillStyle = body;                                     // boiler dome
+    ctx.beginPath();
+    ctx.arc(r * 0.12, -h * 0.78, w * 0.48, Math.PI, TAU);
+    ctx.fill();
+    ctx.strokeStyle = e.flash > 0 ? '#ffffff' : COPPER;       // dome hoop
+    ctx.lineWidth = Math.max(1, r * 0.07);
+    ctx.beginPath();
+    ctx.arc(r * 0.12, -h * 0.78, w * 0.3, Math.PI, TAU);
+    ctx.stroke();
+    ctx.fillStyle = body;                                     // angular slab (same outline)
     ctx.beginPath();
     ctx.moveTo(-w, -h * 0.6);
     ctx.lineTo(-w * 0.78, h);
@@ -659,18 +847,52 @@ const SHAPES = {
     ctx.lineTo(-w * 0.62, -h);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.2)';                  // bolted plates
-    for (let i = -1; i <= 1; i++) ctx.fillRect(i * w * 0.52 - w * 0.19, h * 0.08, w * 0.38, h * 0.6);
-    ctx.fillStyle = DARK;                                     // visor slit
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';                        // bolted plates
+    for (let i = -1; i <= 1; i++) {
+      ctx.fillRect(i * w * 0.52 - w * 0.19, h * 0.08, w * 0.38, h * 0.6);
+    }
+    if (r > FINE) {                                           // visible bolts
+      const bolt = e.flash > 0 ? '#ffffff' : BRASS_HI;
+      for (let i = -1; i <= 1; i++) {
+        const cx = i * w * 0.52;
+        rivetRow(ctx, cx - w * 0.13, h * 0.17, cx + w * 0.13, h * 0.17, 2, r * 0.065, bolt);
+        rivetRow(ctx, cx - w * 0.13, h * 0.59, cx + w * 0.13, h * 0.59, 2, r * 0.065, bolt);
+      }
+    }
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : BRASS;          // waist strap
+    ctx.fillRect(-w * 0.95, -h * 0.06, w * 1.9, h * 0.09);
+    ctx.fillStyle = DARK;                                     // visor cavity (kept)
     ctx.fillRect(-w * 0.56, -h * 0.44, w * 1.12, h * 0.32);
-    ctx.fillStyle = '#ffd166';
+    ctx.globalAlpha = 0.32 + 0.16 * Math.sin(e.age * 3 + e.phase);   // furnace breathing
+    ctx.fillStyle = MOLTEN;
+    ctx.fillRect(-w * 0.52, -h * 0.42, w * 1.04, h * 0.28);
+    ctx.globalAlpha = 1;
+    if (r > FINE) {                                           // brass slit frame
+      ctx.strokeStyle = e.flash > 0 ? '#ffffff' : BRASS;
+      ctx.lineWidth = Math.max(1, r * 0.05);
+      ctx.strokeRect(-w * 0.56, -h * 0.44, w * 1.12, h * 0.32);
+    }
+    ctx.fillStyle = '#ffd166';                                // amber furnace slit (kept)
     ctx.fillRect(-w * 0.46, -h * 0.37, w * 0.92, h * 0.13);
   },
 
-  shooter(ctx, e, r) {
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';                        // barrel, player-ward
-    ctx.fillRect(-r * 0.17, r * 0.2, r * 0.34, r * 1.15);
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;        // diamond hull
+  // telescope cannon: wheeled tripod carriage, long brass tube tracking the player
+  shooter(ctx, e, r, k, p) {
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    const metal = e.flash > 0 ? '#ffffff' : IRON;
+    const ang = aimAngle(e, p);
+    ctx.strokeStyle = metal;                                  // tripod legs
+    ctx.lineWidth = Math.max(1.5, r * 0.14);
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-r * 0.86, r * 0.7);
+    ctx.moveTo(0, 0); ctx.lineTo(r * 0.86, r * 0.7);
+    ctx.moveTo(0, 0); ctx.lineTo(0, -r * 0.95);
+    ctx.stroke();
+    disc(ctx, -r * 0.86, r * 0.72, r * 0.28, e.flash > 0 ? '#ffffff' : COPPER);   // wheels
+    disc(ctx, r * 0.86, r * 0.72, r * 0.28, e.flash > 0 ? '#ffffff' : COPPER);
+    disc(ctx, -r * 0.86, r * 0.72, r * 0.12, COAL);
+    disc(ctx, r * 0.86, r * 0.72, r * 0.12, COAL);
+    ctx.fillStyle = body;                                     // diamond hull (kept)
     ctx.beginPath();
     ctx.moveTo(0, -r * 1.15);
     ctx.lineTo(r * 0.95, 0);
@@ -678,41 +900,91 @@ const SHAPES = {
     ctx.lineTo(-r * 0.95, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * 0.3, 0, TAU);
-    ctx.fill();
-    if (e.charge > 0) {                                       // wind-up flash
+    if (r > FINE) {
+      rivetArc(ctx, 0, 0, r * 0.62, -Math.PI / 2, -Math.PI / 2 + TAU * 0.75, 4, r * 0.07,
+        'rgba(0,0,0,0.45)');
+    }
+    ctx.save();                                               // telescope, aimed at the player
+    ctx.rotate(ang);
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : BRASS;
+    ctx.fillRect(-r * 0.19, r * 0.1, r * 0.38, r * 1.28);
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';                       // tube shading
+    ctx.fillRect(r * 0.05, r * 0.1, r * 0.14, r * 1.28);
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : COPPER;         // sleeve + muzzle ring
+    ctx.fillRect(-r * 0.24, r * 0.6, r * 0.48, r * 0.14);
+    ctx.fillRect(-r * 0.27, r * 1.24, r * 0.54, r * 0.16);
+    ctx.restore();
+    disc(ctx, 0, 0, r * 0.3, COAL);                           // trunnion / turret ring
+    disc(ctx, 0, 0, r * 0.15, e.flash > 0 ? '#ffffff' : BRASS);
+    if (e.charge > 0) {                                       // wind-up flash (unchanged read)
+      ctx.save();
+      ctx.rotate(ang);
       ctx.globalAlpha = 0.35 + e.charge * 0.65;
       ctx.fillStyle = '#fff2a8';
       ctx.beginPath();
       ctx.arc(0, r * 1.32, r * (0.2 + e.charge * 0.42), 0, TAU);
       ctx.fill();
       ctx.globalAlpha = 1;
+      ctx.restore();
     }
   },
 
+  // plate carrier: riveted round chassis behind a bolted iron plate
   shield(ctx, e, r) {
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    disc(ctx, 0, 0, r * 0.9, body);                           // chassis (kept size)
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';                       // lower hull shade
     ctx.beginPath();
-    ctx.arc(0, 0, r * 0.9, 0, TAU);
+    ctx.arc(0, r * 0.2, r * 0.72, 0, Math.PI);
     ctx.fill();
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.arc(-r * 0.28, -r * 0.02, r * 0.14, 0, TAU);
-    ctx.arc(r * 0.28, -r * 0.02, r * 0.14, 0, TAU);
-    ctx.fill();
+    if (r > FINE) {
+      rivetArc(ctx, 0, 0, r * 0.66, 0, TAU * (7 / 8), 8, r * 0.07,
+        e.flash > 0 ? '#ffffff' : 'rgba(0,0,0,0.5)');
+    }
+    ctx.save();                                               // winding cog on the crown
+    ctx.translate(0, -r * 0.98);
+    drawGear(ctx, r * 0.26, -e.age * 1.1, 8, e.flash > 0 ? '#ffffff' : BRASS);
+    disc(ctx, 0, 0, r * 0.08, COAL);
+    ctx.restore();
+    disc(ctx, -r * 0.28, -r * 0.02, r * 0.14, COAL);          // twin portholes (kept)
+    disc(ctx, r * 0.28, -r * 0.02, r * 0.14, COAL);
+    if (r > FINE) {
+      disc(ctx, -r * 0.28, -r * 0.02, r * 0.06, EMBER);
+      disc(ctx, r * 0.28, -r * 0.02, r * 0.06, EMBER);
+    }
     const frac = e.shieldMaxHp > 0 ? clamp(e.shieldHp / e.shieldMaxHp, 0, 1) : 0;
     const col = e.def.shieldColor || '#8fd6ff';
     if (frac > 0) {                                           // frontal plate, dims as it weakens
-      ctx.strokeStyle = e.shieldFlash > 0 ? '#ffffff' : col;
+      const lit = e.shieldFlash > 0;
       ctx.globalAlpha = 0.32 + frac * 0.62;
+      ctx.strokeStyle = lit ? '#ffffff' : IRON;           // iron plate body
       ctx.lineWidth = Math.max(2, r * 0.3);
       ctx.beginPath();
       ctx.arc(0, r * 0.08, r * 1.15, Math.PI * 0.18, Math.PI * 0.82);
       ctx.stroke();
+      ctx.strokeStyle = lit ? '#ffffff' : col;                // shield-blue edges
+      ctx.lineWidth = Math.max(1.2, r * 0.12);
+      ctx.beginPath();
+      ctx.arc(0, r * 0.08, r * 1.26, Math.PI * 0.18, Math.PI * 0.82);
+      ctx.stroke();
+      ctx.lineWidth = Math.max(1, r * 0.07);
+      ctx.beginPath();
+      ctx.arc(0, r * 0.08, r * 1.04, Math.PI * 0.2, Math.PI * 0.8);
+      ctx.stroke();
+      if (r > FINE) {                                         // plate bolts
+        rivetArc(ctx, 0, r * 0.08, r * 1.15, Math.PI * 0.26, Math.PI * 0.74, 5, r * 0.09,
+          lit ? '#ffffff' : BRASS_HI);
+      }
       ctx.globalAlpha = 1;
     } else {                                                  // shattered stubs
+      ctx.strokeStyle = 'rgba(75,58,44,0.6)';
+      ctx.lineWidth = Math.max(1.8, r * 0.22);
+      ctx.beginPath();
+      ctx.arc(0, r * 0.08, r * 1.15, Math.PI * 0.18, Math.PI * 0.33);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(0, r * 0.08, r * 1.15, Math.PI * 0.67, Math.PI * 0.82);
+      ctx.stroke();
       ctx.strokeStyle = 'rgba(143,214,255,0.28)';
       ctx.lineWidth = Math.max(1.5, r * 0.18);
       ctx.beginPath();
@@ -721,11 +993,14 @@ const SHAPES = {
       ctx.beginPath();
       ctx.arc(0, r * 0.08, r * 1.15, Math.PI * 0.67, Math.PI * 0.82);
       ctx.stroke();
+      rivetArc(ctx, 0, r * 0.08, r * 1.15, Math.PI * 0.22, Math.PI * 0.78, 2, r * 0.07,
+        'rgba(143,214,255,0.3)');                             // two bolts left in the mount
     }
   },
 
+  // pressure boiler: copper drum straining at the seams, rivets popping out
   splitter(ctx, e, r) {
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;        // wobbly blob
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;        // straining shell (wobble kept)
     ctx.beginPath();
     const N = 12;
     for (let i = 0; i <= N; i++) {
@@ -736,26 +1011,50 @@ const SHAPES = {
     }
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';                        // the minis inside
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : COPPER;         // hoop straps
+    ctx.fillRect(-r * 0.86, -r * 0.44, r * 1.72, r * 0.11);
+    ctx.fillRect(-r * 0.86, r * 0.33, r * 1.72, r * 0.11);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';                        // the minis inside (kept)
     for (let i = 0; i < 3; i++) {
       const a = e.age * 1.6 + (i / 3) * TAU;
       ctx.beginPath();
       ctx.arc(Math.cos(a) * r * 0.36, Math.sin(a) * r * 0.36, r * 0.22, 0, TAU);
       ctx.fill();
     }
+    if (r > FINE) {
+      for (let i = 0; i < 6; i++) {                           // rivets working loose
+        const a = (i / 6) * TAU + e.phase;
+        const pop = Math.max(0, Math.sin(e.age * 3.4 + i * 1.7));
+        const ca = Math.cos(a), sa = Math.sin(a);
+        disc(ctx, ca * r * 0.8, sa * r * 0.8, r * 0.08, 'rgba(0,0,0,0.45)');
+        disc(ctx, ca * r * (0.8 + pop * 0.24), sa * r * (0.8 + pop * 0.24), r * 0.07,
+          e.flash > 0 ? '#ffffff' : BRASS_HI);
+      }
+      ctx.save();                                             // pressure gauge, needle in the red
+      ctx.translate(r * 0.3, r * 0.34);
+      disc(ctx, 0, 0, r * 0.21, e.flash > 0 ? '#ffffff' : BRASS);
+      disc(ctx, 0, 0, r * 0.16, COAL);
+      const needle = -Math.PI * 0.75
+        + (0.55 + 0.45 * Math.sin(e.age * 4 + e.phase)) * Math.PI * 1.5;
+      ctx.strokeStyle = MOLTEN;
+      ctx.lineWidth = Math.max(1, r * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(needle) * r * 0.13, Math.sin(needle) * r * 0.13);
+      ctx.stroke();
+      ctx.restore();
+    }
   },
 
+  // runaway cog: a tiny gear spinning itself to pieces, one eye
   mini(ctx, e, r) {
-    ctx.fillStyle = e.flash > 0 ? '#ffffff' : e.color;
-    ctx.beginPath();
-    ctx.arc(0, 0, r * (0.95 + Math.sin(e.age * 9 + e.phase) * 0.1), 0, TAU);
-    ctx.fill();
-    ctx.fillStyle = DARK;
-    ctx.beginPath();
-    ctx.arc(0, r * 0.14, r * 0.26, 0, TAU);
-    ctx.fill();
+    const rr = r * (0.95 + Math.sin(e.age * 9 + e.phase) * 0.1);   // jitter pulse (kept)
+    drawGear(ctx, rr, e.age * 6 + e.phase, 8, e.flash > 0 ? '#ffffff' : e.color);
+    disc(ctx, 0, rr * 0.14, rr * 0.26, COAL);
+    disc(ctx, 0, rr * 0.14, rr * 0.11, EMBER);
   },
 
+  // piston ram: steam ram with a big frontal piston head that loads on wind-up
   charger(ctx, e, r) {
     const tele = e.state === 1 ? clamp(e.stateT / e.def.telegraph, 0, 1) : 0;
     const blink = tele > 0 && Math.sin(e.stateT * 22) > 0;
@@ -769,32 +1068,83 @@ const SHAPES = {
       ctx.stroke();
       ctx.globalAlpha = 1;
     }
-    ctx.fillStyle = e.flash > 0 || blink ? '#fff2a8' : e.color;
-    ctx.beginPath();                                          // ram / arrowhead
-    ctx.moveTo(0, r * 1.3);
+    const hot = e.flash > 0 || blink;
+    const body = hot ? '#fff2a8' : e.color;
+    const metal = hot ? '#fff2a8' : IRON;
+    if (tele > 0) {                                           // steam hiss while it loads
+      steamPuff(ctx, -r * 0.82, -r * 0.15, r * 0.28, e.age, 3, r * 1.1, 0.1, 0.26 * tele);
+      steamPuff(ctx, r * 0.82, -r * 0.15, r * 0.28, e.age, 3, r * 1.1, 0.6, 0.26 * tele);
+    }
+    ctx.fillStyle = body;
+    ctx.beginPath();                                          // ram chassis (same arrowhead)
+    ctx.moveTo(0, r * 0.98);
     ctx.lineTo(r * 0.9, -r * 0.1);
     ctx.lineTo(r * 0.45, -r * 0.95);
     ctx.lineTo(-r * 0.45, -r * 0.95);
     ctx.lineTo(-r * 0.9, -r * 0.1);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.fillRect(-r * 0.62, r * 0.22, r * 1.24, r * 0.26);
-    ctx.fillStyle = DARK;
+    const head = r * (1.3 - 0.34 * tele);                     // piston compresses on wind-up
+    ctx.fillStyle = metal;                                    // rod
+    ctx.fillRect(-r * 0.15, r * 0.45, r * 0.3, Math.max(0, head - r * 0.5));
+    if (r > FINE) {                                            // compression rings
+      rivetRow(ctx, 0, r * 0.55, 0, head - r * 0.55, 3, r * 0.09, hot ? '#fff2a8' : BRASS);
+    }
+    ctx.fillStyle = hot ? '#fff2a8' : BRASS;                  // frontal piston head
     ctx.beginPath();
-    ctx.arc(0, -r * 0.3, r * 0.2, 0, TAU);
+    ctx.moveTo(-r * 0.78, head - r * 0.42);
+    ctx.lineTo(0, head);
+    ctx.lineTo(r * 0.78, head - r * 0.42);
+    ctx.lineTo(r * 0.6, head - r * 0.7);
+    ctx.lineTo(-r * 0.6, head - r * 0.7);
+    ctx.closePath();
     ctx.fill();
+    ctx.fillStyle = hot ? '#fff2a8' : COPPER;                 // strike face
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.62, head - r * 0.24);
+    ctx.lineTo(0, head - r * 0.02);
+    ctx.lineTo(r * 0.62, head - r * 0.24);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = hot ? '#fff2a8' : BRASS;                  // shoulder strap + bolts
+    ctx.fillRect(-r * 0.62, r * 0.22, r * 1.24, r * 0.2);
+    if (r > FINE) {
+      rivetRow(ctx, -r * 0.5, r * 0.32, r * 0.5, r * 0.32, 4, r * 0.06, 'rgba(0,0,0,0.45)');
+    }
+    disc(ctx, 0, -r * 0.3, r * 0.2, COAL);                    // porthole
+    if (r > FINE) furnaceEye(ctx, 0, -r * 0.3, r * 0.09, hot ? '#ffffff' : MOLTEN, 0.9);
+    else disc(ctx, 0, -r * 0.3, r * 0.1, hot ? '#ffffff' : MOLTEN);
   },
 
+  // IRONCLAD: a clockwork war engine — layered gears, riveted armour, twin
+  // stacks, and a furnace visor tinted by the phase.
   boss(ctx, e, r) {
     const ph = e.bossPhase;
     const col = e.flash > 0 ? '#ffffff' : e.color;
     const tele = e.state === 1 ? clamp(e.stateT / SLAM_TELEGRAPH, 0, 1) : 0;
+    const lit = ph === 3 ? '#ff5a5a' : ph === 2 ? '#ffb02e' : '#ffe08a';   // phase tints (kept)
     ctx.scale(1 + Math.sin(e.age * (2 + ph)) * 0.03 + tele * 0.12,
       1 + Math.sin(e.age * (2 + ph)) * 0.03 + tele * 0.1);
+    for (let s = -1; s <= 1; s += 2) {                         // twin smokestacks (were horns)
+      ctx.save();
+      ctx.translate(s * r * 0.88, -r * 0.66);
+      ctx.rotate(s * 0.3);
+      ctx.fillStyle = e.flash > 0 ? '#ffffff' : IRON;
+      ctx.fillRect(-r * 0.2, -r * 0.95, r * 0.4, r * 1.12);
+      ctx.fillStyle = e.flash > 0 ? '#ffffff' : BRASS;
+      ctx.fillRect(-r * 0.26, -r * 1.04, r * 0.52, r * 0.16);
+      rivetRow(ctx, 0, -r * 0.72, 0, -r * 0.16, 3, r * 0.055, BRASS_HI);
+      steamPuff(ctx, 0, -r * 1.06, r * 0.26, e.age, 3, r * 1.5, s > 0 ? 0.55 : 0.05,
+        0.14 + 0.06 * (ph - 1));
+      ctx.restore();
+    }
     ctx.fillStyle = 'rgba(0,0,0,0.45)';                       // shoulder pods
     ctx.fillRect(-r * 1.35, -r * 0.55, r * 0.55, r * 1.2);
     ctx.fillRect(r * 0.8, -r * 0.55, r * 0.55, r * 1.2);
+    drawGear(ctx, r * 1.32, e.age * 0.32, 22,                 // slow drive gear behind the hull
+      e.flash > 0 ? '#ffffff' : IRON);
+    drawGear(ctx, r * 1.1, -e.age * 0.55, 16,                 // counter-rotating copper layer
+      e.flash > 0 ? '#ffffff' : COPPER_A);
     ctx.shadowColor = col;                                    // phase glow
     ctx.shadowBlur = (ph === 3 ? 26 : ph === 2 ? 16 : 10) * (e.phaseFlash > 0 || tele > 0 ? 1.7 : 1);
     ctx.fillStyle = col;
@@ -807,23 +1157,28 @@ const SHAPES = {
     ctx.closePath();
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.beginPath();                                          // horns
-    ctx.moveTo(-r * 0.9, -r * 0.6);
-    ctx.lineTo(-r * 1.28, -r * 1.5);
-    ctx.lineTo(-r * 0.42, -r * 0.85);
-    ctx.closePath();
-    ctx.moveTo(r * 0.9, -r * 0.6);
-    ctx.lineTo(r * 1.28, -r * 1.5);
-    ctx.lineTo(r * 0.42, -r * 0.85);
-    ctx.closePath();
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.18)';                 // chest plate
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';                 // riveted chest plate
     ctx.fillRect(-r * 0.75, r * 0.25, r * 1.5, r * 0.4);
-    ctx.fillStyle = DARK;                                     // visor
+    rivetRow(ctx, -r * 0.66, r * 0.33, r * 0.66, r * 0.33, 6, r * 0.05, BRASS_HI);
+    rivetRow(ctx, -r * 0.66, r * 0.57, r * 0.66, r * 0.57, 6, r * 0.05, BRASS_HI);
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';                       // brow plate
+    ctx.fillRect(-r * 0.78, -r * 0.62, r * 1.56, r * 0.2);
+    rivetRow(ctx, -r * 0.66, -r * 0.52, r * 0.66, -r * 0.52, 5, r * 0.05, BRASS_HI);
+    ctx.save();                                               // fast brass gear on the chest
+    ctx.translate(0, r * 0.45);
+    drawGear(ctx, r * 0.27, e.age * 0.95, 12, e.flash > 0 ? '#ffffff' : BRASS);
+    disc(ctx, 0, 0, r * 0.08, COAL);
+    ctx.restore();
+    ctx.fillStyle = DARK;                                     // visor cavity
     ctx.fillRect(-r * 0.72, -r * 0.36, r * 1.44, r * 0.44);
-    ctx.fillStyle = ph === 3 ? '#ff5a5a' : ph === 2 ? '#ffb02e' : '#ffe08a';
-    for (let i = -1; i <= 1; i++) ctx.fillRect(i * r * 0.42 - r * 0.14, -r * 0.29, r * 0.28, r * 0.17);
-    if (ph >= 2) {                                            // battle damage
+    ctx.strokeStyle = e.flash > 0 ? '#ffffff' : BRASS;        // brass visor frame
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.strokeRect(-r * 0.72, -r * 0.36, r * 1.44, r * 0.44);
+    ctx.fillStyle = lit;                                      // outer visor slots (kept read)
+    ctx.fillRect(-r * 0.56, -r * 0.29, r * 0.28, r * 0.17);
+    ctx.fillRect(r * 0.28, -r * 0.29, r * 0.28, r * 0.17);
+    furnaceEye(ctx, 0, -r * 0.14, r * 0.19, lit, 1);          // central furnace eye
+    if (ph >= 2) {                                            // battle damage, molten inside
       ctx.strokeStyle = 'rgba(0,0,0,0.5)';
       ctx.lineWidth = Math.max(1.5, r * 0.07);
       ctx.beginPath();
@@ -832,6 +1187,16 @@ const SHAPES = {
       ctx.lineTo(-r * 0.42, -r * 0.1);
       if (ph === 3) { ctx.moveTo(r * 0.55, r * 0.85); ctx.lineTo(r * 0.3, r * 0.1); }
       ctx.stroke();
+      ctx.globalAlpha = 0.45 + 0.35 * Math.abs(Math.sin(e.age * 2.4));
+      ctx.strokeStyle = MOLTEN;
+      ctx.lineWidth = Math.max(0.8, r * 0.032);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.5, r * 0.9);
+      ctx.lineTo(-r * 0.2, r * 0.2);
+      ctx.lineTo(-r * 0.42, -r * 0.1);
+      if (ph === 3) { ctx.moveTo(r * 0.55, r * 0.85); ctx.lineTo(r * 0.3, r * 0.1); }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
     if (e.charge > 0) {                                       // volley wind-up
       ctx.globalAlpha = 0.3 + e.charge * 0.6;
@@ -895,11 +1260,21 @@ export function drawEnemies(ctx, view, game) {
       ctx.beginPath();
       ctx.arc(0, 0, r * 1.32, 0, TAU);
       ctx.stroke();
+      if (r > FINE) {                          // brass cog halo riding the aura ring
+        ctx.globalAlpha = 0.85;
+        for (let i = 0; i < 3; i++) {
+          const a = e.age * 0.7 + (i / 3) * TAU + e.phase;
+          ctx.save();
+          ctx.translate(Math.cos(a) * r * 1.32, Math.sin(a) * r * 1.32);
+          drawGear(ctx, r * 0.19, -e.age * 1.6, 8, ELITE.color);
+          ctx.restore();
+        }
+      }
       ctx.globalAlpha = 1;
     }
 
     ctx.save();
-    (SHAPES[e.type] || SHAPES.grunt)(ctx, e, r, k);
+    (SHAPES[e.type] || SHAPES.grunt)(ctx, e, r, k, p);
     ctx.restore();
 
     // HP bar on tough types only (boss has the DOM bar), shield bar above it

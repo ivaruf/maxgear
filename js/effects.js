@@ -6,6 +6,12 @@
 //  - `size`, `r1` (end radius / height) and the optional `y` (height above the
 //    road plane) are all WORLD units. Everything is drawn at k = f * unitScale.
 //  - Particles are drawn additively ('lighter') in a single save/restore block.
+//    'steam' is the one exception: it flips to source-over for its two arcs and
+//    flips straight back, so soft smoke reads as smoke and not as light.
+//  - Particle kinds: spark, ring, flash, ember, pillar, steam (STEAMPUNK puffs)
+//    and gear (spinning cog silhouettes — `r1` doubles as spin rate in rad/s).
+//  - Rotation is driven by the fx-local `clock` (frozen while paused) and the
+//    per-particle `seed`. Never Date.now().
 //  - Damage numbers aggregate: a plain-number pop of the same color within
 //    MERGE_CELL world units of a floater younger than MERGE_WINDOW is summed
 //    into it and re-punched instead of stacking. No call-site changes required.
@@ -18,6 +24,34 @@ const CRIT_COLOR = '#ffd166';   // collisions.js tags crit damage numbers with t
 const MERGE_WINDOW = 0.3;       // s: nearby numbers merge instead of stacking
 const MERGE_CELL = 40;          // world units: merge radius (per-axis box test)
 const FLOATER_CAP = 40;
+
+const STEAM = '#e6e1d7';        // DESIGN.md steam
+const BRASS_HI = '#f0b429';     // DESIGN.md bright brass
+const BRASS = '#c9973b';        // DESIGN.md brass
+
+// One unit-radius cog path, built on first use (never at module load: this file
+// must stay importable outside a browser) and reused by every gear particle.
+let GEAR_PATH = null;
+function gearShape() {
+  if (GEAR_PATH) return GEAR_PATH;
+  const teeth = 7, depth = 0.3, step = 6.2832 / teeth, rIn = 1 - depth;
+  const p = new Path2D();
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const a1 = a + step * 0.14, a2 = a + step * 0.36, a3 = a + step * 0.5;
+    const x0 = Math.cos(a) * rIn, y0 = Math.sin(a) * rIn;
+    if (i === 0) p.moveTo(x0, y0); else p.lineTo(x0, y0);
+    p.lineTo(Math.cos(a1), Math.sin(a1));
+    p.lineTo(Math.cos(a2), Math.sin(a2));
+    p.lineTo(Math.cos(a3) * rIn, Math.sin(a3) * rIn);
+  }
+  p.closePath();
+  // hub bore, so the silhouette reads as a cog even at a few pixels across
+  p.moveTo(0.26, 0);
+  p.arc(0, 0, 0.26, 0, 6.2832, true);
+  GEAR_PATH = p;
+  return p;
+}
 
 const particles = [];
 const floaters = [];
@@ -88,10 +122,12 @@ export const fx = {
     }
   },
 
-  // Layered blast: core flash + shockwave ring + sparks + a few slow embers.
+  // Layered blast: core flash + shockwave ring + sparks + slow embers + a few
+  // lazy steam puffs (ruptured boiler, not just fire).
   explosion(x, z, radius = 70, color = '#ff8a5a') {
     const sparks = Math.round(Math.min(18, Math.max(8, radius * 0.28)));
     const embers = Math.round(Math.min(7, Math.max(3, radius * 0.09)));
+    const puffs = Math.round(Math.min(4, Math.max(2, radius * 0.05)));
 
     spawn('flash', x, radius * 0.18, z, 0, 0, 0, 0.14, radius * 0.55, '#fff3d6', 0, 0, 0.95, radius * 0.95);
     spawn('ring', x, 2, z, 0, 0, 0, 0.38, radius * 0.25, color, 0, 0, 0.85, radius * 1.75);
@@ -106,31 +142,47 @@ export const fx = {
       spawn('ember', x, rand(2, radius * 0.4), z, Math.cos(a) * s, rand(30, 90), Math.sin(a) * s,
         rand(0.5, 0.95), rand(1.6, 3), color, 1.2, -110, 0.8, 0);
     }
+    // steam: slow, expanding, rising, no gravity fall-back
+    for (let i = 0; i < puffs; i++) {
+      const a = rand(0, Math.PI * 2), s = rand(14, 52);
+      spawn('steam', x + Math.cos(a) * radius * 0.22, rand(radius * 0.12, radius * 0.5),
+        z + Math.sin(a) * radius * 0.22, Math.cos(a) * s, rand(45, 95), Math.sin(a) * s,
+        rand(0.7, 1.15), radius * 0.2, STEAM, 0.85, 12, 0.55, radius * 0.7);
+    }
     doShake(Math.min(radius * 0.06, 8), 0.2);
   },
 
-  // Directional muzzle flash (defaults to straight ahead, +z).
+  // Directional muzzle flash (defaults to straight ahead, +z). The aether-cyan
+  // core is a gameplay read (player fire) and stays; one ejected spark is warmed
+  // to brass so the barrel itself reads as machined metal.
   muzzle(x, z, dirX = 0, dirZ = 1) {
     const len = Math.hypot(dirX, dirZ) || 1;
     const ux = dirX / len, uz = dirZ / len;
     spawn('flash', x + ux * 6, 6, z + uz * 6, 0, 0, 0, 0.07, 6, '#9df3ff', 0, 0, 0.85, 11);
     for (let i = 0; i < 2; i++) {
       spawn('spark', x, 6, z, ux * rand(40, 130) + rand(-50, 50), rand(-10, 40), uz * rand(180, 320),
-        0.09, 1.5, '#d9fbff', 5, 0, 0.9, 0);
+        0.09, 1.5, i === 0 ? '#d9fbff' : '#ffdca8', 5, 0, 0.9, 0);
     }
   },
 
-  // Gate celebration: light pillar + ground ring + confetti. Call from
-  // gates.js applyGateSlot(): fx.gateBurst(game.player.x, gate.z, color).
+  // Gate celebration: light pillar + ground ring + a shower of spinning cogs
+  // (same particle budget as the old confetti). Call from gates.js
+  // applyGateSlot(): fx.gateBurst(game.player.x, gate.z, color).
   gateBurst(x, z, color = '#3ddc84') {
     spawn('pillar', x, 0, z, 0, 0, 0, 0.55, 26, color, 0, 0, 0.9, 280);
     spawn('ring', x, 1, z, 0, 0, 0, 0.42, 24, color, 0, 0, 0.8, 150);
     spawn('flash', x, 10, z, 0, 0, 0, 0.16, 26, '#ffffff', 0, 0, 0.55, 46);
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 12; i++) {
       const a = rand(0, Math.PI * 2), s = rand(40, 190);
-      spawn('spark', x, rand(4, 26), z, Math.cos(a) * s, rand(230, 520), Math.sin(a) * s,
-        rand(0.45, 0.9), rand(1.8, 3.4), choice([color, '#ffffff', '#ffd166', color]),
-        0.9, -760, 1, 0);
+      // r1 = spin rate (rad/s); the slot color stays dominant for the read
+      spawn('gear', x, rand(4, 26), z, Math.cos(a) * s, rand(230, 520), Math.sin(a) * s,
+        rand(0.5, 0.95), rand(2.4, 4.4), choice([color, color, BRASS_HI, '#ffffff']),
+        0.9, -760, 1, rand(-11, 11));
+    }
+    for (let i = 0; i < 4; i++) {       // a few bright streaks keep the punch
+      const a = rand(0, Math.PI * 2), s = rand(60, 200);
+      spawn('spark', x, rand(4, 26), z, Math.cos(a) * s, rand(260, 520), Math.sin(a) * s,
+        rand(0.4, 0.8), rand(1.8, 3.2), i % 2 ? color : '#ffffff', 0.9, -760, 1, 0);
     }
     doShake(2, 0.14);
   },
@@ -298,6 +350,38 @@ export const fx = {
           ctx.fill();
           break;
         }
+        case 'steam': {
+          // Soft twin-lobe puff: slow expansion, quick fade-in, long fade-out.
+          const r = (p.size + (p.r1 - p.size) * (1 - (1 - u) * (1 - u))) * k;
+          if (r < 0.8) break;
+          const a = p.alpha * Math.min(1, u * 5) * fade * fade;
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = a * 0.62;
+          ctx.beginPath();
+          ctx.arc(pr.sx, py, r, 0, 6.2832);
+          ctx.fill();
+          ctx.globalAlpha = a * 0.5;
+          ctx.beginPath();
+          ctx.arc(pr.sx + Math.cos(p.seed) * r * 0.4, py - r * 0.35, r * 0.62, 0, 6.2832);
+          ctx.fill();
+          ctx.globalCompositeOperation = 'lighter';
+          break;
+        }
+        case 'gear': {
+          // Tiny spinning cog silhouette: one shared Path2D, scaled + rotated.
+          const r = p.size * k * (0.55 + fade * 0.65);
+          if (r < 0.7) break;
+          ctx.globalAlpha = Math.min(1, p.alpha * fade * 1.15);
+          ctx.fillStyle = p.color;
+          ctx.save();
+          ctx.translate(pr.sx, py);
+          ctx.rotate(p.seed + clock * p.r1);
+          ctx.scale(r, r);
+          ctx.fill(gearShape());
+          ctx.restore();
+          break;
+        }
         case 'pillar': {
           const grow = Math.min(1, u / 0.22);
           const h = p.r1 * k * grow;
@@ -341,7 +425,7 @@ export const fx = {
       ctx.globalAlpha = 1 - u * u;
       ctx.font = `900 ${size}px sans-serif`;
       ctx.lineWidth = Math.max(2, size * 0.17);
-      ctx.strokeStyle = fl.crit ? 'rgba(92,28,0,0.85)' : 'rgba(4,6,16,0.8)';
+      ctx.strokeStyle = fl.crit ? 'rgba(92,28,0,0.85)' : 'rgba(14,10,6,0.82)';
       ctx.strokeText(fl.text, sx, sy);
       ctx.fillStyle = fl.color;
       ctx.fillText(fl.text, sx, sy);
@@ -355,14 +439,21 @@ export const fx = {
       const close = u > 0.78 ? Math.max(0, 1 - (u - 0.78) / 0.22) : 1;
       const h = view.H * 0.135 * grow * close;
       if (h > 0.5) {
-        ctx.fillStyle = '#05060d';
+        ctx.fillStyle = '#0f0c09';                 // coal bars
         ctx.fillRect(0, 0, view.W, h);
         ctx.fillRect(0, view.H - h, view.W, h);
         const pulse = 0.45 + 0.55 * Math.abs(Math.sin(bossT * 11));
         ctx.globalAlpha = pulse * close;
-        ctx.fillStyle = '#b23bc9';
+        ctx.fillStyle = BRASS;                     // riveted brass rim
         ctx.fillRect(0, h - 2, view.W, 2);
         ctx.fillRect(0, view.H - h, view.W, 2);
+        ctx.globalAlpha = 0.7 * close;
+        ctx.fillStyle = BRASS_HI;
+        const step = Math.max(30, view.W / 16);
+        for (let rx = step * 0.5; rx < view.W; rx += step) {
+          ctx.fillRect(rx - 1.5, h - 7, 3, 3);
+          ctx.fillRect(rx - 1.5, view.H - h + 4, 3, 3);
+        }
         ctx.globalAlpha = 1;
       }
     }

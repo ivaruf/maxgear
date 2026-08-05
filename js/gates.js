@@ -237,9 +237,140 @@ export function applyGateSlot(game, gate, slot) {
 }
 
 // ---- drawing ---------------------------------------------------------------
+// STEAMPUNK: the gate is brass-framed apparatus holding a smoked-glass panel.
+// The KIND COLOURS (green/red/purple/gold) are gameplay information and keep
+// their exact hexes and alphas — only the materials around them changed.
 const GATE_H = 62;      // panel height, world units
 const GATE_POST = 6;    // frame thickness, world units
 const MIN_LABEL_PX = 11;
+
+const TAU = Math.PI * 2;
+// Material palette (draw-only, from DESIGN.md "Visual direction").
+const IRON = '#1a1512';
+const BRASS = '#c9973b';
+const BRASS_HI = '#f0b429';
+const BRASS_LO = '#6f5220';
+const RIVET_DARK = 'rgba(44,30,11,0.78)';
+const ENAMEL = '#efe3c8';       // gauge dial face
+
+// Pressure-gauge sweep: lower-left -> over the top -> lower-right (252 deg).
+const GAUGE_A0 = Math.PI * 0.8;
+const GAUGE_SPAN = Math.PI * 1.4;
+
+// Cog silhouette baked ONCE at unit radius and scaled at draw time (perf: no
+// per-frame path building). Path2D is guarded so this module still imports in a
+// non-DOM context (module parse checks); the fallback is a plain disc.
+function cogPath(teeth, rTip, rRoot, rHole) {
+  const p = new Path2D();
+  const step = TAU / teeth;
+  for (let i = 0; i < teeth; i++) {
+    const a = i * step;
+    const a0 = a - step * 0.32, a1 = a - step * 0.15;
+    const a2 = a + step * 0.15, a3 = a + step * 0.32;
+    p[i === 0 ? 'moveTo' : 'lineTo'](Math.cos(a0) * rRoot, Math.sin(a0) * rRoot);
+    p.lineTo(Math.cos(a1) * rTip, Math.sin(a1) * rTip);
+    p.lineTo(Math.cos(a2) * rTip, Math.sin(a2) * rTip);
+    p.lineTo(Math.cos(a3) * rRoot, Math.sin(a3) * rRoot);
+  }
+  p.closePath();
+  if (rHole > 0) {              // reverse-wound subpath = hub hole
+    p.moveTo(rHole, 0);
+    p.arc(0, 0, rHole, 0, TAU, true);
+    p.closePath();
+  }
+  return p;
+}
+const COG = typeof Path2D !== 'undefined' ? cogPath(9, 1, 0.72, 0.3) : null;
+
+// Gear ornament: fill + axle. rot comes from game.time (never Date.now()).
+function drawCog(ctx, x, y, r, rot) {
+  if (r < 1.2) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+  ctx.scale(r, r);
+  ctx.fillStyle = BRASS;
+  if (COG) ctx.fill(COG);
+  else { ctx.beginPath(); ctx.arc(0, 0, 1, 0, TAU); ctx.fill(); }
+  ctx.lineWidth = 0.13;
+  ctx.strokeStyle = 'rgba(30,20,8,0.55)';
+  if (COG) ctx.stroke(COG);
+  ctx.restore();
+  ctx.fillStyle = BRASS_HI;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.2, 0, TAU);
+  ctx.fill();
+}
+
+// Domed brass rivet.
+function rivet(ctx, x, y, r) {
+  ctx.fillStyle = RIVET_DARK;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = BRASS_HI;
+  ctx.beginPath();
+  ctx.arc(x - r * 0.2, y - r * 0.24, r * 0.52, 0, TAU);
+  ctx.fill();
+}
+
+// Evenly spaced rivet column down a post (count bounded for perf).
+function rivetsV(ctx, x, yTop, yBot, r, maxN) {
+  if (r < 0.7) return;
+  const span = yBot - yTop;
+  const n = Math.min(maxN, Math.max(2, Math.floor(span / (r * 8))));
+  for (let i = 0; i < n; i++) rivet(ctx, x, yTop + (span * (i + 0.5)) / n, r);
+}
+
+// Brass tube/plate look from flat fills (no gradient allocation per frame).
+function brassBar(ctx, x, y, w, h, vertical) {
+  ctx.fillStyle = BRASS_LO;
+  ctx.fillRect(x, y, w, h);
+  if (vertical) {
+    ctx.fillStyle = BRASS;
+    ctx.fillRect(x + w * 0.16, y, w * 0.66, h);
+    ctx.fillStyle = BRASS_HI;
+    ctx.fillRect(x + w * 0.26, y, Math.max(0.8, w * 0.18), h);
+  } else {
+    ctx.fillStyle = BRASS;
+    ctx.fillRect(x, y + h * 0.16, w, h * 0.66);
+    ctx.fillStyle = BRASS_HI;
+    ctx.fillRect(x, y + h * 0.24, w, Math.max(0.8, h * 0.18));
+  }
+}
+
+// Pressure gauge mounted on the top beam of a chargeable gate: the needle
+// sweeps 0 -> max exactly like the sight-glass fill below it.
+function gaugeDial(ctx, cx, cy, r, prog, needle) {
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, TAU);
+  ctx.fillStyle = ENAMEL;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1, r * 0.26);
+  ctx.strokeStyle = BRASS;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(28,20,9,0.75)';
+  ctx.lineWidth = Math.max(0.8, r * 0.11);
+  ctx.beginPath();
+  for (let i = 0; i <= 4; i++) {
+    const a = GAUGE_A0 + (i / 4) * GAUGE_SPAN;
+    const c = Math.cos(a), s = Math.sin(a);
+    ctx.moveTo(cx + c * r * 0.54, cy + s * r * 0.54);
+    ctx.lineTo(cx + c * r * 0.82, cy + s * r * 0.82);
+  }
+  ctx.stroke();
+  const a = GAUGE_A0 + prog * GAUGE_SPAN;
+  ctx.strokeStyle = needle;
+  ctx.lineWidth = Math.max(1, r * 0.17);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx + Math.cos(a) * r * 0.76, cy + Math.sin(a) * r * 0.76);
+  ctx.stroke();
+  ctx.fillStyle = IRON;
+  ctx.beginPath();
+  ctx.arc(cx, cy, Math.max(0.8, r * 0.15), 0, TAU);
+  ctx.fill();
+}
 
 function withAlpha(hex, a) {
   const n = parseInt(hex.slice(1), 16);
@@ -322,7 +453,14 @@ function drawSlot(ctx, view, game, gate, slot) {
   }
   ctx.textAlign = 'center';
 
-  // --- glass panel ---------------------------------------------------------
+  // --- smoked glass panel ---------------------------------------------------
+  // Faint soot wash under the tint = "smoked glass". The kind-colour gradient
+  // keeps its original stops/alphas so the distance read is unchanged.
+  ctx.fillStyle = 'rgba(15,12,9,0.20)';
+  ctx.fillRect(x0, y0, w, h * 0.55);
+  ctx.fillStyle = 'rgba(15,12,9,0.09)';
+  ctx.fillRect(x0, y0 + h * 0.55, w, h * 0.45);
+
   const panel = ctx.createLinearGradient(0, y0, 0, y1);
   panel.addColorStop(0, withAlpha(color, 0.08 + flash * 0.18));
   panel.addColorStop(1, withAlpha(color, 0.32 + flash * 0.26));
@@ -336,37 +474,124 @@ function drawSlot(ctx, view, game, gate, slot) {
     ctx.fillRect(x0, y0, w, h * 0.5);
     ctx.fillStyle = withAlpha(GATE_COLORS.bad, 0.12);
     ctx.fillRect(x0, y0 + h * 0.5, w, h * 0.5);
+    // Brass mullion splitting the two chambers of the trade-off.
+    brassBar(ctx, x0, y0 + h * 0.5 - Math.max(1, k), w, Math.max(1.5, 2 * k), false);
   }
 
-  // Chargeable: the panel fills from the bottom as value climbs to max.
-  if (slot.chargeable && prog > 0) {
-    const fh = h * prog;
-    ctx.fillStyle = withAlpha(accent, 0.2 + flash * 0.2);
-    ctx.fillRect(x0, y1 - fh, w, fh);
-    ctx.fillStyle = withAlpha(accent, 0.85);
-    ctx.fillRect(x0, y1 - fh, w, Math.max(1.5, 2 * k));
+  // Chargeable: boiler sight-glass. The fill still climbs from the bottom (the
+  // long-range "how charged is it" read), now with brass graduation ticks.
+  if (slot.chargeable) {
+    if (prog > 0) {
+      const fh = h * prog;
+      ctx.fillStyle = withAlpha(accent, 0.2 + flash * 0.2);
+      ctx.fillRect(x0, y1 - fh, w, fh);
+      ctx.fillStyle = withAlpha(accent, 0.85);
+      ctx.fillRect(x0, y1 - fh, w, Math.max(1.5, 2 * k));   // water line
+    }
+    // Graduations last so they stay legible through the fill.
+    const tickW = Math.max(2, 7 * k);
+    ctx.fillStyle = withAlpha(BRASS, 0.8);
+    for (let i = 1; i <= 4; i++) {
+      const ty = y1 - h * (i / 4);
+      const th = Math.max(1, (i === 4 ? 2 : 1.2) * k);
+      const tw = i === 4 ? tickW * 1.5 : tickW;
+      ctx.fillRect(x0, ty, tw, th);
+      ctx.fillRect(R.sx - tw, ty, tw, th);
+    }
   }
+
+  // Angled sheen so the panel reads as glass rather than a coloured hole.
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x0, y0, w, h);
+  ctx.clip();
+  ctx.globalAlpha = 0.09 + flash * 0.06;
+  ctx.fillStyle = '#fff6e2';
+  ctx.beginPath();
+  ctx.moveTo(x0 + w * 0.06, y1);
+  ctx.lineTo(x0 + w * 0.3, y0);
+  ctx.lineTo(x0 + w * 0.42, y0);
+  ctx.lineTo(x0 + w * 0.18, y1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 
   // Bad gates get hazard stripes across the whole panel — reads as a barrier.
   if (kind === 'bad') hazardStripes(ctx, x0, y0, w, h, k, '#1b0308', 0.5);
 
-  // --- frame ---------------------------------------------------------------
+  // --- brass frame ----------------------------------------------------------
+  // Two LODs: near gates get brass posts/rivets/gears, distant ones keep the
+  // original solid coloured frame so the green/red/purple read at the horizon is
+  // bit-for-bit what it was (and sub-pixel brass detail is never drawn).
   const pw = Math.max(2, GATE_POST * k);
+  const detail = pw >= 3.4;      // rivets/gears/gauge are legible from here in
+  if (pw >= 2.6) {
+    brassBar(ctx, x0 - pw / 2, y0, pw, h, true);            // left post
+    brassBar(ctx, R.sx - pw / 2, y0, pw, h, true);          // right post
+    brassBar(ctx, x0 - pw / 2, y0 - pw, w + pw, pw, false); // top beam
+    ctx.strokeStyle = 'rgba(24,17,8,0.55)';
+    ctx.lineWidth = Math.max(0.8, 0.7 * k);
+    ctx.strokeRect(x0 - pw / 2, y0 - pw, w + pw, h + pw);
+  } else {
+    ctx.fillStyle = color;
+    ctx.fillRect(x0 - pw / 2, y0, pw, h);
+    ctx.fillRect(R.sx - pw / 2, y0, pw, h);
+    ctx.fillRect(x0 - pw / 2, y0 - pw, w + pw, pw);
+  }
+
+  // Riveted posts + beam corners (near only).
+  const rv = pw * 0.22;
+  if (detail) {
+    rivetsV(ctx, x0, y0 + pw * 0.8, y1 - pw * 0.4, rv, 7);
+    rivetsV(ctx, R.sx, y0 + pw * 0.8, y1 - pw * 0.4, rv, 7);
+    rivet(ctx, x0, y0 - pw * 0.5, rv);
+    rivet(ctx, R.sx, y0 - pw * 0.5, rv);
+    rivet(ctx, cx, y0 - pw * 0.5, rv);
+  }
+
+  // The kind colour survives as glowing lamp strips down the inner edge of each
+  // post plus the beam lip — this is what carries green/red/purple at distance.
   ctx.save();
   ctx.shadowColor = color;
   ctx.shadowBlur = Math.max(5, 16 * k);
   ctx.fillStyle = color;
-  ctx.fillRect(x0 - pw / 2, y0, pw, h);              // left post
-  ctx.fillRect(R.sx - pw / 2, y0, pw, h);            // right post
-  ctx.fillRect(x0 - pw / 2, y0 - pw, w + pw, pw);    // top beam
+  const lw = Math.max(1.4, pw * 0.46);
+  ctx.fillRect(x0 + pw * 0.1, y0, lw, h);
+  ctx.fillRect(R.sx - pw * 0.1 - lw, y0, lw, h);
+  ctx.fillRect(x0, y0 - Math.max(1.2, pw * 0.22), w, Math.max(1.2, pw * 0.22));
   ctx.restore();
 
-  // Hazard chevrons on the beam for bad gates, bright lip for the rest.
+  // Riveted warning plates on the beam for bad gates, bright lip for the rest.
   if (kind === 'bad') {
     hazardStripes(ctx, x0 - pw / 2, y0 - pw, w + pw, pw, k, '#12020a', 0.85);
+    if (detail) {
+      const plates = 4;
+      for (let i = 0; i < plates; i++) {
+        rivet(ctx, x0 + (w * (i + 0.5)) / plates, y0 - pw * 0.5, rv * 0.9);
+      }
+    }
   } else {
     ctx.fillStyle = withAlpha(accent, 0.9);
     ctx.fillRect(x0, y0 - pw, w, Math.max(1, pw * 0.35));
+  }
+
+  if (detail) {
+    // Gear ornaments on the posts — driven by game.time (+ charge progress so a
+    // charging gate visibly ratchets forward). Never Date.now().
+    const gt = game.time || 0;
+    const gr = pw * 1.45;
+    const gy = y0 + gr * 1.15;
+    const spin = gt * 0.5 + prog * 0.9;
+    drawCog(ctx, x0, gy, gr, spin);
+    drawCog(ctx, R.sx, gy, gr, -spin);
+
+    // Pressure gauge on the beam of a chargeable slot: the needle sweeps
+    // value -> max exactly like the sight-glass fill below it.
+    if (slot.chargeable) {
+      const dr = pw * 1.9;
+      brassBar(ctx, cx - pw * 0.22, y0 - pw - dr * 0.9, pw * 0.44, dr * 0.9, true);
+      gaugeDial(ctx, cx, y0 - pw - dr, dr, prog, maxed ? accent : '#ffd166');
+    }
   }
 
   // Crossing line on the asphalt so the commit point is unambiguous.
@@ -399,6 +624,29 @@ function drawSlot(ctx, view, game, gate, slot) {
   const lh = fitted * 1.06;
   const centerY = y1 - h * 0.56;
   const top = centerY - (lines.length * lh) / 2;
+
+  // Engraved nameplate behind the label: dark iron ground (raises text contrast
+  // rather than lowering it) with brass edges and corner rivets.
+  // (text ink runs from ~top + 0.25em to the last baseline + ~0.2em)
+  const plW = Math.min(w * 0.96, maxW + fitted * 0.9);
+  const plH = (lines.length - 1) * lh + fitted * 1.36;
+  const plX = cx - plW / 2;
+  const plY = top + fitted * 0.02;
+  ctx.fillStyle = 'rgba(18,14,9,0.34)';
+  ctx.fillRect(plX, plY, plW, plH);
+  ctx.fillStyle = withAlpha(BRASS, 0.55);
+  const edge = Math.max(1, 1.1 * k);
+  ctx.fillRect(plX, plY, plW, edge);
+  ctx.fillRect(plX, plY + plH - edge, plW, edge);
+  const prv = Math.max(1, 1.6 * k);
+  if (detail && plW > prv * 8) {
+    const inset = prv * 2.2;
+    rivet(ctx, plX + inset, plY + inset, prv);
+    rivet(ctx, plX + plW - inset, plY + inset, prv);
+    rivet(ctx, plX + inset, plY + plH - inset, prv);
+    rivet(ctx, plX + plW - inset, plY + plH - inset, prv);
+  }
+
   for (let i = 0; i < lines.length; i++) {
     drawFittedLabel(ctx, lines[i], cx, top + fitted + i * lh, fitted, maxW, tints[i] || '#ffffff');
   }
