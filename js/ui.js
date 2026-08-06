@@ -88,6 +88,10 @@ let lcNeed = 0;
 let lcOwned = [];        // [{key, lv}]
 let lcBrowse = null;     // key shown in the detail pane
 let lcStop = null;       // running preview's stop()
+// v1.5.1 armoury (view-all-powers) state
+let pwBrowse = null;
+let pwLevel = 3;         // preview level, 1..5 (clickable pips)
+let pwStop = null;
 let prevLevels = null;   // { key: level } as last RENDERED — drives the .bump pop
 
 function esc(v) {
@@ -478,6 +482,34 @@ function paintLegend(p, slots) {
   }
 }
 
+// ---- v1.5.1 armoury internals -------------------------------------------------
+const TIER_NOTE = {
+  1: 'AVAILABLE FROM THE OUTSKIRTS (LEVEL 1)',
+  2: 'UNLOCKS IN THE FOUNDRY (LEVEL 2)',
+  3: 'UNLOCKS IN THE SHIPYARDS (LEVEL 3)',
+};
+
+function stopPowerPreview() {
+  if (pwStop) { try { pwStop(); } catch (e) { /* noop */ } pwStop = null; }
+}
+
+function browsePower(key, force = false) {
+  if (!key || (!force && key === pwBrowse)) pwBrowse = key || pwBrowse;
+  pwBrowse = key || pwBrowse;
+  const def = TRACKS[pwBrowse];
+  if (!els || !def) return;
+  els.pwDname.textContent = `${def.name} \u00b7 LV${pwLevel}`;
+  els.pwDblurb.textContent = def.blurb || '';
+  els.pwDtier.textContent = TIER_NOTE[def.tier ?? 1] || '';
+  els.pwLvls.innerHTML = [1, 2, 3, 4, 5].map((n) =>
+    `<button type="button" data-lv="${n}" class="${n <= pwLevel ? 'on' : ''}" aria-label="Level ${n}"></button>`).join('');
+  for (const card of els.pwGrid.querySelectorAll('[data-pw]')) {
+    card.classList.toggle('browse', card.dataset.pw === pwBrowse);
+  }
+  stopPowerPreview();
+  pwStop = startPreview(els.pwPreview, pwBrowse, pwLevel);
+}
+
 // ---- v1.5 KEEP screen internals ---------------------------------------------
 function stopKeepPreview() {
   if (lcStop) { try { lcStop(); } catch (e) { /* noop */ } lcStop = null; }
@@ -523,6 +555,7 @@ export const ui = {
         pause: $('screen-pause'),
         defeat: $('screen-defeat'),
         victory: $('screen-victory'),
+        powers: $('screen-powers'),
         slots: $('screen-slots'),
         newgame: $('screen-newgame'),
         levelclear: $('screen-levelclear'),
@@ -534,6 +567,9 @@ export const ui = {
       lcGrid: $('lc-grid'), lcPreview: $('lc-preview'),
       lcDname: $('lc-dname'), lcDblurb: $('lc-dblurb'),
       btnContinue: $('btn-continue'),
+      pwGrid: $('pw-grid'), pwPreview: $('pw-preview'),
+      pwDname: $('pw-dname'), pwDblurb: $('pw-dblurb'),
+      pwDtier: $('pw-dtier'), pwLvls: $('pw-lvls'),
       victorySub: $('victory-sub'),
       defeatStats: $('defeat-stats'),
       victoryStats: $('victory-stats'),
@@ -616,6 +652,23 @@ export const ui = {
       });
     }
     tap($('btn-slots-back'), actions.backToTitle);
+    tap($('btn-powers'), actions.showPowers);
+    tap($('btn-powers-back'), actions.backToTitle);
+    if (els.pwGrid) {
+      const browse = (ev) => {
+        const card = ev.target.closest('[data-pw]');
+        if (card && card.dataset.pw !== pwBrowse) { browsePower(card.dataset.pw); }
+      };
+      els.pwGrid.addEventListener('click', (ev) => { browse(ev); audio.click(); });
+      els.pwGrid.addEventListener('mouseover', browse);
+      els.pwLvls.addEventListener('click', (ev) => {
+        const b = ev.target.closest('[data-lv]');
+        if (!b) return;
+        pwLevel = +b.dataset.lv;
+        audio.click();
+        browsePower(pwBrowse, true);
+      });
+    }
     tap($('btn-newgame-back'), actions.backToSlots);
 
     // Difficulty cards are static: build once.
@@ -673,6 +726,7 @@ export const ui = {
     }
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
+    if (state !== 'powers') stopPowerPreview();
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state === null && !steerHintShown) {
       steerHintShown = true;
@@ -781,6 +835,19 @@ export const ui = {
     if (lcOwned.length) browseKeep((lcOwned[0] || {}).key);
     else { stopKeepPreview(); els.lcDname.textContent = ''; els.lcDblurb.textContent = ''; }
     paintKeepGrid();
+  },
+
+  // v1.5.1: the armoury — every track, browsable, with live previews.
+  showPowers() {
+    if (!els || !els.pwGrid) return;
+    els.pwGrid.innerHTML = TRACK_ORDER.map((key) => {
+      const def = TRACKS[key];
+      const tier = def.tier ?? 1;
+      return `<button class="keep-card" data-pw="${key}" type="button">
+        ${tier > 1 ? `<span class="tier-tag">${tier === 2 ? 'II' : 'III'}</span>` : ''}
+        ${chipIcon(def.icon, pwLevel, 20)}<em>${esc(def.name)}</em></button>`;
+    }).join('');
+    browsePower(pwBrowse || TRACK_ORDER[0], true);
   },
 
   // Selection when complete, else null (main.js gates Space/continue on this).

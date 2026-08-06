@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.5.0'; // keep-2 level clears + animated upgrade previews
+const VERSION = 'v1.5.1'; // the Armoury: browse all powers from the title screen
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

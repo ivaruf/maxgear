@@ -51,6 +51,9 @@ The Foundry and The Shipyards onward — and introduce new machines: the mortar-
 **Bomber** (dodge the dashed ring!), the enemy-healing **Welder** (shoot it first), and
 bolted-down **Turrets** that survive anything ramming them.
 
+**The Armoury:** the title screen's "VIEW ALL POWERS" opens a browsable codex of all 18
+tracks — descriptions, unlock tiers, and live animated demos at any level (click the pips).
+
 **Keep-2 (v1.5):** clearing a level opens the KEEP screen — a grid of everything you own,
 each with a description and a **live animated demo** of the effect. Pick exactly **two**
 upgrades to carry forward (glowing border); the rest is scrapped. It's the campaign's

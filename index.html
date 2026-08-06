@@ -61,6 +61,7 @@
     </div>
 
     <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
+    <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
     <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
   </div>
 
@@ -68,6 +69,22 @@
     <h2>PAUSED</h2>
     <button class="big-btn" id="btn-resume" type="button">RESUME</button>
     <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
+  </div>
+
+  <div id="screen-powers" class="screen hidden">
+    <h2>THE ARMOURY</h2>
+    <p class="tagline">Every power in the campaign — click the pips to preview any level</p>
+    <div id="pw-pick">
+      <div id="pw-grid"></div>
+      <div id="pw-detail">
+        <canvas id="pw-preview" aria-hidden="true"></canvas>
+        <h3 id="pw-dname"></h3>
+        <div id="pw-lvls" aria-label="Preview level"></div>
+        <p id="pw-dblurb"></p>
+        <p id="pw-dtier" class="hint"></p>
+      </div>
+    </div>
+    <button class="small-btn" id="btn-powers-back" type="button">BACK TO TITLE</button>
   </div>
 
   <div id="screen-slots" class="screen hidden">

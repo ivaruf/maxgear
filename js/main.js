@@ -257,6 +257,7 @@ function handleInput() {
       break;
     case 'slots':
     case 'newgame':
+    case 'powers':
       if (pausePress) { audio.click(); setState('title'); } // Esc backs out
       break;
     case 'playing':
@@ -332,6 +333,7 @@ ui.init(game, {
   pickDifficulty: (key) => { audio.unlock(); newGame(pendingSlot, key); },
   confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
+  showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
   backToTitle: () => setState('title'),
 });
 ui.showScreen('title');
