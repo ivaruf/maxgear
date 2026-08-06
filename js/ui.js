@@ -576,6 +576,7 @@ export const ui = {
       defeatBuild: $('defeat-build'),
       victoryBuild: $('victory-build'),
       muteBtn: $('mute-btn'),
+      btnUpdate: $('btn-update'), versionTag: $('game-version'),
     };
 
     // --- legend nodes: 2 icon canvases + one text slab per span --------------
@@ -714,6 +715,20 @@ export const ui = {
       });
     }
 
+    // v1.5.2 opt-in update: stopPropagation so the tap doesn't bubble into the
+    // title screen's click-anywhere-to-start handler below and launch a run
+    // right as the page is about to reload.
+    if (els.btnUpdate) {
+      els.btnUpdate.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (els.btnUpdate.disabled) return;
+        els.btnUpdate.disabled = true;
+        els.btnUpdate.textContent = '⚙  UPDATING…';
+        audio.click();
+        actions.applyUpdate();
+      });
+    }
+
     // Tap anywhere on the title screen starts the run (the overlay covers the
     // canvas, so input.js' 'tap' never fires here). actions.start is guarded by
     // main.js (`state === 'title'`), so the extra bubbled click is a no-op.
@@ -760,6 +775,19 @@ export const ui = {
   setMuted(m) {
     els.muteBtn.textContent = m ? '🔇' : '🔊';
     els.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+  },
+
+  // v1.5.2: the version that is actually serving this session (from the SW).
+  setVersion(v) {
+    if (els && els.versionTag && v) els.versionTag.textContent = v;
+  },
+
+  // v1.5.2: a new worker is precached and waiting — surface the opt-in pill.
+  offerUpdate(version) {
+    if (!els || !els.btnUpdate) return;
+    els.btnUpdate.disabled = false;
+    els.btnUpdate.textContent = `⚙  ${version ? version + ' ' : ''}READY — TAP TO UPDATE`;
+    els.btnUpdate.classList.remove('hidden');
   },
 
   // Queued, never overlapping: one slot, the visible label's hold is cut short

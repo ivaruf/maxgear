@@ -335,6 +335,7 @@ ui.init(game, {
   backToSlots: () => setState('slots'),
   showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
   backToTitle: () => setState('title'),
+  applyUpdate: () => { if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); },
 });
 ui.showScreen('title');
 
@@ -351,17 +352,57 @@ window.MG = {
   },
 };
 
-// ---- PWA: install + update-on-launch -------------------------------------------
+// ---- PWA: install + opt-in updates ----------------------------------------------
 // sw.js precaches everything under a versioned cache. updateViaCache:'none' +
-// reg.update() make a bumped sw.js VERSION get picked up at launch; when the
-// new worker takes control we reload to run the fresh version — but only from
-// the title screen, never in the middle of a run.
+// reg.update() make a bumped sw.js VERSION get detected and precached at launch,
+// but the new worker then WAITS: the title screen shows an "update ready" pill
+// and only that tap sends SKIP_WAITING. When the new worker takes control we
+// reload to run the fresh version — but only from the title screen, never
+// mid-run. The title's version tag is asked FROM the worker (GET_VERSION), so
+// it always shows the build that is actually serving this session.
+let swReg = null;
+
+function swVersion(worker) {
+  return new Promise((resolve) => {
+    if (!worker) { resolve(null); return; }
+    const ch = new MessageChannel();
+    const bail = setTimeout(() => resolve(null), 1500);
+    ch.port1.onmessage = (ev) => { clearTimeout(bail); resolve((ev.data && ev.data.version) || null); };
+    worker.postMessage({ type: 'GET_VERSION' }, [ch.port2]);
+  });
+}
+
+function offerIfWaiting() {
+  // Only an UPDATE waits (a first install activates immediately) — but guard
+  // on controller anyway so a stray waiting worker can't offer on first visit.
+  if (!swReg || !swReg.waiting || !navigator.serviceWorker.controller) return;
+  swVersion(swReg.waiting).then((v) => ui.offerUpdate(v));
+}
+
 if ('serviceWorker' in navigator) {
   const hadController = !!navigator.serviceWorker.controller;
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
-      .then((reg) => reg.update())
+      .then((reg) => {
+        swReg = reg;
+        reg.update().catch(() => {});
+        offerIfWaiting(); // an update may already be parked from a previous launch
+        reg.addEventListener('updatefound', () => {
+          const w = reg.installing;
+          if (w) w.addEventListener('statechange', () => { if (w.state === 'installed') offerIfWaiting(); });
+        });
+      })
       .catch(() => { /* offline or unsupported: the game runs fine without it */ });
+
+    // Title version tag: ask the controlling worker; on the very first visit
+    // (nothing controls yet) fall back to reading sw.js off the network.
+    swVersion(navigator.serviceWorker.controller).then((v) => {
+      if (v) { ui.setVersion(v); return; }
+      fetch('sw.js')
+        .then((r) => r.text())
+        .then((t) => { const m = t.match(/VERSION = '([^']+)'/); if (m) ui.setVersion(m[1]); })
+        .catch(() => {});
+    });
   });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (hadController && game.state === 'title') location.reload();

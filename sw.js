@@ -1,14 +1,16 @@
 // MAXGEAR service worker: versioned precache for offline play + install.
 //
-// Update model ("updated on launch"): bump VERSION on every deploy. The page
-// registers with { updateViaCache: 'none' } and calls reg.update() on load, so
-// a changed sw.js is detected at launch, the new cache is precached in the
-// background, skipWaiting()/clients.claim() switch over, and main.js reloads
-// the page — but only while on the title screen, never mid-run.
+// Update model ("opt-in"): bump VERSION on every deploy. The page registers
+// with { updateViaCache: 'none' } and calls reg.update() on load, so a changed
+// sw.js is detected at launch and the new cache is precached in the background.
+// The new worker then WAITS: main.js shows an "update ready" button on the
+// title screen, and only that tap sends SKIP_WAITING. When the new worker
+// takes control, main.js reloads — only ever from the title screen.
+// GET_VERSION lets the page display the version that is actually serving it.
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.5.1'; // the Armoury: browse all powers from the title screen
+const VERSION = 'v1.5.2'; // title version tag + user opt-in updates
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -44,11 +46,15 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE)
-      .then((cache) => cache.addAll(ASSETS))
-      .then(() => self.skipWaiting())
-  );
+  // No skipWaiting() here: after precaching, the new worker stays WAITING
+  // until the user accepts the update from the title screen.
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+});
+
+self.addEventListener('message', (event) => {
+  const msg = event.data || {};
+  if (msg.type === 'SKIP_WAITING') self.skipWaiting();
+  if (msg.type === 'GET_VERSION' && event.ports[0]) event.ports[0].postMessage({ version: VERSION });
 });
 
 self.addEventListener('activate', (event) => {

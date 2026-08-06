@@ -834,6 +834,30 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 .small-btn:active { transform: scale(0.96); }
 
+/* ---- Title: version tag + opt-in update pill (v1.5.2) ---- */
+.version-tag {
+  position: absolute;
+  right: calc(14px + var(--safe-r)); bottom: calc(10px + var(--safe-b));
+  font-family: var(--font-display);
+  font-size: 11px; letter-spacing: 1.6px;
+  color: #ddcfb4; opacity: 0.45;
+  pointer-events: none;
+}
+.update-btn {
+  color: #ffe9b0;
+  border-color: rgba(240, 180, 41, 0.85);
+  box-shadow: var(--sheen), 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 14px rgba(240, 180, 41, 0.3);
+  animation: updateGlow 2.2s ease-in-out infinite;
+}
+.update-btn:disabled { opacity: 0.6; cursor: default; animation: none; }
+@keyframes updateGlow {
+  0%, 100% { box-shadow: var(--sheen), 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 8px rgba(240, 180, 41, 0.2); }
+  50% { box-shadow: var(--sheen), 0 2px 8px rgba(0, 0, 0, 0.5), 0 0 20px rgba(240, 180, 41, 0.5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .update-btn { animation: none; }
+}
+
 /* ---- End screens: brass-framed cards ---- */
 .end-card {
   position: relative;

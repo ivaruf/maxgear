@@ -34,8 +34,12 @@ subpath as-is (`.nojekyll` is included).
 
 **Shipping an update:** bump `VERSION` at the top of `sw.js` (e.g. `v1.0.0` → `v1.0.1`)
 in the same commit as your changes. On the next launch the new version is precached in
-the background, old caches are deleted, and the page auto-reloads — only from the title
-screen, never mid-run. (Without a bump, returning visitors keep playing the cached build.)
+the background, then **waits for the player to opt in**: the title screen shows a glowing
+"⚙ vX.Y.Z ready — tap to update" pill. Tapping it swaps to the new version and reloads
+(only ever from the title screen, never mid-run); ignoring it keeps the current build
+running, including fully offline. The title screen also shows the active version in the
+corner — asked from the service worker itself, so it's always the build actually serving
+the session. (Without a bump, returning visitors keep playing the cached build.)
 
 **Local dev note:** once the service worker has registered in your browser, it serves the
 cached build. While developing, either bump `VERSION`, or use DevTools → Application →
@@ -179,9 +183,10 @@ the road.
 - Automated Playwright suite in real Chrome: start → steer (keys + drag) → full run → boss →
   victory → restart → defeat → restart → resize → mobile viewport → pause/resume,
   asserting **zero console errors** end-to-end.
-- PWA suite: service-worker registration, complete precache, **offline reload + playthrough**,
-  and a live update simulation (VERSION bump → new cache installed on launch → old cache
-  deleted → auto-reload lands healthy on the title screen).
+- PWA suite: service-worker registration, complete precache, title version tag (online and
+  offline), **offline reload + playthrough**, and a live opt-in update simulation (VERSION
+  bump → new cache pre-fetched while the old build keeps serving → update pill on the title
+  → tap → swap + reload lands healthy on the title screen with the new version tag).
 - Autopilot balance harness playing complete unassisted runs (greedy and cautious gate
   policies): victory at ~3:20–3:35 with real HP pressure; boss fight ~25–35s.
 - Maxed-build stress test (6 shots × 9 shooters × 14 volleys/s ≈ 360 live projectiles + horde):
