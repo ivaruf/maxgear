@@ -274,7 +274,7 @@ export function resolveCollisions(game, dt) {
       if (a.dead) continue;
       if (circleHit(e, a)) {
         damageAlly(game, a, e.damage);
-        if (!e.isBoss) {
+        if (!e.isBoss && !e.def.heavy) { // heavy emplacements shrug allies off
           e.dead = true;
           fx.explosion(e.x, e.z, e.radius, e.color);
         }

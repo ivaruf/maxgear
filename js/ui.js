@@ -79,6 +79,8 @@ let scoreFlip = false;
 let prevAct = null;
 let prevStrip = '';
 let prevLegend = '';
+let armedDelete = -1;    // slot index with an armed two-tap delete
+let armedTimer = null;
 let prevLevels = null;   // { key: level } as last RENDERED — drives the .bump pop
 
 function esc(v) {
@@ -487,7 +489,15 @@ export const ui = {
         pause: $('screen-pause'),
         defeat: $('screen-defeat'),
         victory: $('screen-victory'),
+        slots: $('screen-slots'),
+        newgame: $('screen-newgame'),
+        levelclear: $('screen-levelclear'),
       },
+      slotList: $('slot-list'),
+      diffList: $('diff-list'),
+      lcHeading: $('lc-heading'), lcSub: $('lc-sub'),
+      lcStats: $('lc-stats'), lcBuild: $('lc-build'),
+      victorySub: $('victory-sub'),
       defeatStats: $('defeat-stats'),
       victoryStats: $('victory-stats'),
       defeatBuild: $('defeat-build'),
@@ -546,6 +556,54 @@ export const ui = {
     tap($('pause-btn'), actions.pause);
     tap(els.muteBtn, actions.mute);
 
+    // ---- campaign screens (v1.4) -------------------------------------------
+    tap($('btn-continue'), actions.nextLevel);
+    tap($('btn-slots-back'), actions.backToTitle);
+    tap($('btn-newgame-back'), actions.backToSlots);
+
+    // Difficulty cards are static: build once.
+    if (els.diffList) {
+      const DIFFS = [
+        ['easy', 'EASY', 'A Sunday drive. Gentler machines.'],
+        ['medium', 'MEDIUM', 'The intended experience.'],
+        ['hard', 'HARD', 'Boilers screaming. Bring armour.'],
+      ];
+      els.diffList.innerHTML = DIFFS.map(([k, label, blurb]) =>
+        `<button class="pick-card diff-${k}" data-diff="${k}" type="button">
+           <b>${label}</b><span>${blurb}</span></button>`).join('');
+      els.diffList.addEventListener('click', (ev) => {
+        const card = ev.target.closest('[data-diff]');
+        if (card) { audio.click(); actions.pickDifficulty(card.dataset.diff); }
+      });
+    }
+
+    // Slot cards are rebuilt by showSlots(); one delegated listener handles
+    // resume / new-game / two-tap delete.
+    if (els.slotList) {
+      els.slotList.addEventListener('click', (ev) => {
+        const del = ev.target.closest('[data-del]');
+        if (del) {
+          const i = +del.dataset.del;
+          if (armedDelete === i) { armedDelete = -1; audio.click(); actions.deleteSlot(i); }
+          else {
+            armedDelete = i;
+            del.textContent = '\u2715 SURE?';
+            del.classList.add('armed');
+            clearTimeout(armedTimer);
+            armedTimer = setTimeout(() => {
+              armedDelete = -1;
+              del.textContent = '\u2715';
+              del.classList.remove('armed');
+            }, 3000);
+          }
+          ev.stopPropagation();
+          return;
+        }
+        const card = ev.target.closest('[data-slot]');
+        if (card) { audio.click(); actions.pickSlot(+card.dataset.slot); }
+      });
+    }
+
     // Tap anywhere on the title screen starts the run (the overlay covers the
     // canvas, so input.js' 'tap' never fires here). actions.start is guarded by
     // main.js (`state === 'title'`), so the extra bubbled click is a no-op.
@@ -603,8 +661,58 @@ export const ui = {
     toastTimer = setTimeout(nextToast, Math.max(TOAST_MIN, TOAST_RUSH - elapsed));
   },
 
-  showEnd(game, victory) {
+  // v1.4: slots screen — cards are rebuilt on every show (the delegated click
+  // listener in init() survives; two-tap delete state resets with the rebuild).
+  showSlots(slots) {
+    if (!els || !els.slotList) return;
+    armedDelete = -1;
+    const ago = (t) => {
+      if (!t) return '';
+      const m = Math.max(1, Math.round((Date.now() - t) / 60000));
+      if (m < 60) return `${m}m ago`;
+      const h = Math.round(m / 60);
+      return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+    };
+    els.slotList.innerHTML = slots.map((s, i) => {
+      if (!s) {
+        return `<button class="pick-card slot-card empty" data-slot="${i}" type="button">
+          <b>SLOT ${i + 1}</b><span>EMPTY — NEW GAME</span></button>`;
+      }
+      const prog = s.cleared
+        ? 'CAMPAIGN CLEARED ★'
+        : `LEVEL ${Math.min(s.levelIndex + 1, 4)} / 4`;
+      const diff = esc(String(s.difficulty || 'medium').toUpperCase());
+      return `<div class="pick-card slot-card" data-slot="${i}" role="button" tabindex="0">
+        <b>SLOT ${i + 1} · ${prog}</b>
+        <span>${diff} · SCORE ${esc(s.score ?? 0)} · ${ago(s.updatedAt)}</span>
+        <em class="slot-resume">${s.cleared ? 'REPLAY FINALE →' : 'RESUME →'}</em>
+        <button class="slot-del" data-del="${i}" type="button" aria-label="Delete save">\u2715</button>
+      </div>`;
+    }).join('');
+  },
+
+  // v1.4: between-level interstitial.
+  showLevelClear(game, info) {
+    if (!els || !els.lcHeading) return;
+    els.lcHeading.textContent = `LEVEL ${info.levelIndex + 1} CLEAR`;
+    els.lcSub.textContent = `${info.name} secured · next: ${info.next}`;
+    els.lcStats.innerHTML = [
+      ['SCORE', game.score],
+      ['KILLS', game.kills],
+    ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+    els.lcBuild.innerHTML = buildChips(game.player);
+  },
+
+  showEnd(game, victory, extra = {}) {
     const p = game.player;
+    if (els.victorySub) {
+      if (victory && extra.campaignDone) {
+        els.victorySub.textContent = `THE CAMPAIGN IS COMPLETE · ${extra.difficulty || ''}`.trim();
+        els.victorySub.classList.remove('hidden');
+      } else {
+        els.victorySub.classList.add('hidden');
+      }
+    }
     const stats = [
       ['SCORE', game.score],
       ['KILLS', game.kills],

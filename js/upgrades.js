@@ -188,6 +188,17 @@ export const TRACKS = {
   thrust:    mkTrack('thrust', 'THRUST', 'defence', 'chevrons'),
 };
 
+// Campaign availability (v1.4): tier 1 offered from level 1, tier 2 from THE
+// FOUNDRY, tier 3 from THE SHIPYARDS. level.js filters gate pools by this;
+// non-track entries (instants/bad/mixed) have no tier and are always legal
+// (mixed trades additionally gated to levelDef.tier >= 2 in level.js).
+const TRACK_TIERS = {
+  damage: 1, fireRate: 1, multishot: 1, squad: 1, plating: 1, thrust: 1,
+  lance: 2, blast: 2, crit: 2, siphon: 2, aegis: 2,
+  arc: 3, burn: 3, frost: 3, homing: 3, saw: 3, broadside: 3, shrapnel: 3,
+};
+for (const k in TRACKS) TRACKS[k].tier = TRACK_TIERS[k] ?? 1;
+
 // Build order. No two builds write the same field, so this only fixes
 // determinism (and keeps HUD/end-screen listings stable).
 export const TRACK_ORDER = [

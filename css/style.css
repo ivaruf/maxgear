@@ -519,6 +519,57 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 .tagline { font-family: var(--font-serif); opacity: 0.78; font-style: italic; font-size: 13.5px; color: #e6d6b4; }
 .hint { font-size: 12px; opacity: 0.55; line-height: 1.5; color: #ddcfb4; }
 
+/* ---- v1.4 campaign cards: save slots + difficulty picks ---- */
+#slot-list, #diff-list {
+  display: flex; flex-direction: column; gap: 12px;
+  width: min(92vw, 440px);
+}
+.pick-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  padding: 14px 18px; min-height: 56px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--plate);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  box-shadow: var(--sheen), 0 4px 14px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.15s;
+  font-family: var(--font-ui);
+}
+.pick-card:hover { transform: scale(1.02); border-color: var(--rim-hot); }
+.pick-card:active { transform: scale(0.98); }
+.pick-card b {
+  font-family: var(--font-display);
+  font-size: 15px; letter-spacing: 1.5px; color: #ffe9bd;
+}
+.pick-card span { font-size: 12px; opacity: 0.75; }
+.pick-card.empty b { color: #cfc4ac; }
+.pick-card.empty span { color: #8fd8a3; }
+.slot-resume {
+  font-style: normal; font-size: 12px; font-weight: 800;
+  letter-spacing: 1px; color: var(--cyan); margin-top: 2px;
+}
+.slot-del {
+  position: absolute; top: 8px; right: 8px;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(20, 14, 10, 0.8);
+  border: 1px solid rgba(210, 81, 60, 0.5);
+  color: #eb9078; font-size: 13px; cursor: pointer;
+}
+.slot-del.armed {
+  background: rgba(120, 30, 18, 0.9); color: #fff;
+  width: auto; padding: 0 10px; border-radius: 17px;
+}
+.diff-easy b { color: #8fd8a3; }
+.diff-medium b { color: #ffd166; }
+.diff-hard b { color: #eb9078; }
+@media (max-height: 600px) {
+  #slot-list, #diff-list { gap: 8px; }
+  .pick-card { padding: 10px 14px; min-height: 46px; }
+}
+
 /* ---- Title: brass plaque + slow gearworks ---- */
 #screen-title {
   background:

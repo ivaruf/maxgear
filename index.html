@@ -70,6 +70,32 @@
     <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
   </div>
 
+  <div id="screen-slots" class="screen hidden">
+    <h2>SELECT SAVE SLOT</h2>
+    <div id="slot-list"></div>
+    <button class="small-btn" id="btn-slots-back" type="button">BACK TO TITLE</button>
+  </div>
+
+  <div id="screen-newgame" class="screen hidden">
+    <h2>SELECT DIFFICULTY</h2>
+    <div id="diff-list"></div>
+    <button class="small-btn" id="btn-newgame-back" type="button">BACK</button>
+  </div>
+
+  <div id="screen-levelclear" class="screen hidden">
+    <div class="end-card party">
+      <h2 class="good" id="lc-heading">LEVEL CLEAR</h2>
+      <p id="lc-sub" class="tagline"></p>
+      <div id="lc-stats" class="end-stats"></div>
+      <div class="build">
+        <span class="build-cap">CURRENT BUILD</span>
+        <div id="lc-build" class="build-row"></div>
+      </div>
+      <p class="hint" id="lc-saved">PROGRESS SAVED ✓</p>
+      <button class="big-btn pulse" id="btn-continue" type="button">CONTINUE →</button>
+    </div>
+  </div>
+
   <div id="screen-defeat" class="screen hidden">
     <div class="end-card somber">
       <h2 class="bad">WRECKED</h2>
@@ -86,6 +112,7 @@
   <div id="screen-victory" class="screen hidden">
     <div class="end-card party">
       <h2 class="good">IRONCLAD DOWN</h2>
+      <p id="victory-sub" class="tagline hidden"></p>
       <div id="victory-stats" class="end-stats"></div>
       <div class="build">
         <span class="build-cap">FINAL BUILD</span>

@@ -1,4 +1,10 @@
-// Bootstrap + game state machine + fixed update pipeline. LEAD-OWNED.
+// Bootstrap + campaign state machine + fixed update pipeline. LEAD-OWNED.
+//
+// v1.4 CAMPAIGN: title -> 'slots' (3 saves) -> 'newgame' (difficulty) ->
+// startLevel(0) ... boss/foreman dead -> 'levelclear' (autosave) -> next level
+// -> final level victory. Build (player.tracks) and score persist across
+// levels; HP refills at level start. R restarts the CURRENT level with the
+// build it started with.
 
 import { BASE_RUN_SPEED } from './config.js';
 import { sweepDead } from './utils.js';
@@ -7,7 +13,7 @@ import { createView, resizeView, updateCamera, render } from './render.js';
 import { createPlayer, updatePlayer } from './player.js';
 import { updateProjectiles } from './projectiles.js';
 import { updateEnemies, spawnEnemy, ENEMY_TYPES } from './enemies.js';
-import { bossTargetHp } from './upgrades.js';
+import { bossTargetHp, recomputeStats } from './upgrades.js';
 import { updateGates } from './gates.js';
 import { updateObstacles } from './obstacles.js';
 import { updatePickups } from './pickups.js';
@@ -16,13 +22,15 @@ import { resolveCollisions } from './collisions.js';
 import { fx } from './effects.js';
 import { audio } from './audio.js';
 import { ui } from './ui.js';
+import { DIFFICULTIES, levelDef, isFinalLevel, LEVELS } from './campaign.js';
+import { loadSlots, writeSlot, clearSlot, makeSave } from './saves.js';
 
 const canvas = document.getElementById('game');
 const input = createInput(canvas);
 const view = createView(canvas);
 
 const game = {
-  state: 'title', // title | playing | paused | victory | defeat
+  state: 'title', // title | slots | newgame | playing | paused | levelclear | victory | defeat
   time: 0,
   runSpeed: BASE_RUN_SPEED,
   score: 0,
@@ -31,6 +39,7 @@ const game = {
   enemies: [],
   projectiles: [],
   enemyShots: [],
+  mortars: [],        // bomber shells in flight (managed by enemies.js)
   gates: [],
   obstacles: [],
   pickups: [],
@@ -39,15 +48,21 @@ const game = {
   pendingBossAt: null,
   endTimer: 0,        // short delay before showing end screens
   lastUpgrade: null,
-  level: createLevel(),
+  campaign: null,     // { slot, difficulty, levelIndex, introduced:Set, levelStart* }
+  levelDef: null,     // LEVELS[levelIndex] while playing
+  difficulty: null,   // DIFFICULTIES entry (enemies.js reads enemyHp/enemyDmg)
+  level: null,        // director state (created per level)
   view,
   timeScale: 1,       // debug/testing fast-forward
 };
+
+let pendingSlot = 0;  // slot chosen on the slots screen, awaiting difficulty
 
 function clearWorld() {
   game.enemies.length = 0;
   game.projectiles.length = 0;
   game.enemyShots.length = 0;
+  game.mortars.length = 0;
   game.gates.length = 0;
   game.obstacles.length = 0;
   game.pickups.length = 0;
@@ -59,24 +74,100 @@ function clearWorld() {
   fx.reset();
 }
 
-function newRun() {
+// Types already showcased this campaign (resume pre-fills from earlier levels'
+// pools so a resumed run never re-teaches old machines).
+function introducedUpTo(levelIndex) {
+  const set = new Set();
+  for (let i = 0; i < levelIndex; i++) {
+    const pool = levelDef(i).enemyPool;
+    const keys = pool === 'all'
+      ? Object.keys(ENEMY_TYPES).filter((k) => !ENEMY_TYPES[k].isBoss)
+      : pool;
+    for (const k of keys) set.add(k);
+  }
+  return set;
+}
+
+function startLevel(i, tracks = null) {
+  const c = game.campaign;
+  c.levelIndex = i;
+  game.levelDef = levelDef(i);
+  game.difficulty = c.difficulty;
   game.time = 0;
   game.runSpeed = BASE_RUN_SPEED;
-  game.score = 0;
-  game.kills = 0;
-  game.player = createPlayer();
   game.endTimer = 0;
-  game.level = createLevel();
+  // The build PERSISTS across levels: default to whatever the player has right
+  // now (continue path); explicit tracks win (resume / R-restart snapshots).
+  const carry = tracks ?? (game.player ? game.player.tracks : null);
+  game.player = createPlayer();
+  if (carry) game.player.tracks = { ...carry };
+  recomputeStats(game.player);
+  game.player.hp = game.player.maxHp; // fresh boiler every level
+  // R-restart snapshot: the build/score this level STARTED with
+  c.levelStartTracks = { ...game.player.tracks };
+  c.levelStartScore = game.score;
+  c.levelStartKills = game.kills;
   clearWorld();
+  game.level = createLevel(game.levelDef, c.difficulty, c.introduced);
   input.clear();
   setState('playing');
+}
+
+function newGame(slot, diffKey) {
+  game.campaign = {
+    slot,
+    difficulty: DIFFICULTIES[diffKey] || DIFFICULTIES.medium,
+    levelIndex: 0,
+    introduced: new Set(),
+  };
+  game.score = 0;
+  game.kills = 0;
+  startLevel(0);
+}
+
+function resumeGame(slot, save) {
+  game.campaign = {
+    slot,
+    difficulty: DIFFICULTIES[save.difficulty] || DIFFICULTIES.medium,
+    levelIndex: save.levelIndex,
+    introduced: introducedUpTo(save.levelIndex),
+  };
+  game.score = save.score || 0;
+  game.kills = save.kills || 0;
+  // A cleared campaign resumes at the final level for a victory lap
+  startLevel(Math.min(save.levelIndex, LEVELS.length - 1), save.tracks);
+}
+
+function restartLevel() {
+  const c = game.campaign;
+  if (!c) return;
+  game.score = c.levelStartScore;
+  game.kills = c.levelStartKills;
+  startLevel(c.levelIndex, c.levelStartTracks);
 }
 
 function setState(s) {
   game.state = s;
   if (s === 'playing') input.clear(); // drops drag accumulated while paused
   ui.showScreen(s === 'playing' ? null : s === 'paused' ? 'pause' : s);
-  if (s === 'victory') { ui.showEnd(game, true); audio.win(); }
+  if (s === 'slots') ui.showSlots(loadSlots());
+  if (s === 'levelclear') {
+    const c = game.campaign;
+    ui.showLevelClear(game, {
+      levelIndex: c.levelIndex,
+      name: game.levelDef.name,
+      next: levelDef(c.levelIndex + 1).name,
+      score: game.score,
+    });
+    audio.win();
+  }
+  if (s === 'victory') {
+    ui.showEnd(game, true, {
+      campaignDone: true,
+      difficulty: game.campaign ? game.campaign.difficulty.label : '',
+    });
+    audio.win();
+  }
   if (s === 'defeat') { ui.showEnd(game, false); audio.lose(); }
 }
 
@@ -86,15 +177,17 @@ function step(dt) {
 
   updateLevel(game, dt);
 
-  // Boss arena: stop forward motion just before the arena, spawn the boss
+  // End-fight arena: stop forward motion just before it, spawn the level's boss
   if (game.pendingBossAt !== null && game.player.z >= game.pendingBossAt - 250) {
     game.runSpeed = 0;
     if (!game.boss && !game.bossDefeated) {
-      // Boss HP scales with the player's actual landed DPS so the fight lasts
-      // ~25s for any build. The estimator lives in upgrades.js next to the
-      // track tables so it can't rot when upgrades change.
-      const targetHp = bossTargetHp(game.player);
-      spawnEnemy(game, 'boss', 0, game.player.z + 700, { hpScale: targetHp / ENEMY_TYPES.boss.hp });
+      // HP scales with the player's actual landed DPS (upgrades.js) so the
+      // fight lasts ~bossSec for any build; foremen are ~55% fights.
+      const end = game.levelDef && game.levelDef.end === 'foreman' && ENEMY_TYPES.foreman
+        ? 'foreman' : 'boss';
+      const diffMul = (game.difficulty ? game.difficulty.bossSec : 24) / 24;
+      const target = bossTargetHp(game.player) * diffMul * (end === 'foreman' ? 0.55 : 1);
+      spawnEnemy(game, end, 0, game.player.z + 700, { hpScale: target / ENEMY_TYPES[end].hp });
     }
   }
 
@@ -109,6 +202,7 @@ function step(dt) {
   sweepDead(game.enemies);
   sweepDead(game.projectiles);
   sweepDead(game.enemyShots);
+  sweepDead(game.mortars);
   sweepDead(game.gates);
   sweepDead(game.obstacles);
   sweepDead(game.pickups);
@@ -119,7 +213,16 @@ function step(dt) {
     if (game.endTimer > 1.0) setState('defeat');
   } else if (game.bossDefeated) {
     game.endTimer += dt;
-    if (game.endTimer > 1.4) setState('victory');
+    if (game.endTimer > 1.4) {
+      const c = game.campaign;
+      if (isFinalLevel(c.levelIndex)) {
+        writeSlot(c.slot, makeSave(game, c.levelIndex, true));
+        setState('victory');
+      } else {
+        writeSlot(c.slot, makeSave(game, c.levelIndex + 1));
+        setState('levelclear');
+      }
+    }
   }
 }
 
@@ -133,19 +236,28 @@ function handleInput() {
 
   switch (game.state) {
     case 'title':
-      if (startPress) { audio.unlock(); audio.click(); newRun(); }
+      if (startPress) { audio.unlock(); audio.click(); setState('slots'); }
+      break;
+    case 'slots':
+    case 'newgame':
+      if (pausePress) { audio.click(); setState('title'); } // Esc backs out
       break;
     case 'playing':
       if (pausePress) { audio.click(); setState('paused'); }
-      else if (restartPress) newRun();
+      else if (restartPress) restartLevel();
       break;
     case 'paused':
       if (pausePress || startPress) { audio.click(); setState('playing'); ui.showScreen(null); }
-      else if (restartPress) newRun();
+      else if (restartPress) restartLevel();
+      break;
+    case 'levelclear':
+      if (startPress) { audio.click(); startLevel(game.campaign.levelIndex + 1); }
       break;
     case 'defeat':
+      if (startPress || restartPress) { audio.unlock(); restartLevel(); }
+      break;
     case 'victory':
-      if (startPress || restartPress) { audio.unlock(); newRun(); }
+      if (startPress || restartPress) { audio.unlock(); clearWorld(); setState('slots'); }
       break;
   }
 }
@@ -180,22 +292,42 @@ function frame(now) {
 
 // ---- boot ---------------------------------------------------------------------
 ui.init(game, {
-  start: () => { if (game.state === 'title') { audio.unlock(); newRun(); } },
-  restart: () => { audio.unlock(); newRun(); },
+  start: () => { if (game.state === 'title') { audio.unlock(); setState('slots'); } },
+  restart: () => { audio.unlock(); restartLevel(); },
   resume: () => { if (game.state === 'paused') { setState('playing'); ui.showScreen(null); } },
-  quit: () => { clearWorld(); setState('title'); }, // no frozen run bleeding through the title
+  quit: () => { clearWorld(); setState('title'); }, // autosaves happen at level clear only
   pause: () => {
     if (game.state === 'playing') setState('paused');
     else if (game.state === 'paused') { setState('playing'); ui.showScreen(null); }
   },
   mute: () => ui.setMuted(audio.toggleMute()),
+  pickSlot: (i) => {
+    audio.unlock();
+    const save = loadSlots()[i];
+    if (save && !save.cleared) resumeGame(i, save);
+    else if (save && save.cleared) resumeGame(i, save); // victory-lap replay of the finale
+    else { pendingSlot = i; setState('newgame'); }
+  },
+  deleteSlot: (i) => { clearSlot(i); ui.showSlots(loadSlots()); },
+  pickDifficulty: (key) => { audio.unlock(); newGame(pendingSlot, key); },
+  nextLevel: () => { if (game.state === 'levelclear') startLevel(game.campaign.levelIndex + 1); },
+  backToSlots: () => setState('slots'),
+  backToTitle: () => setState('title'),
 });
 ui.showScreen('title');
 
 window.addEventListener('resize', () => resizeView(view));
 
-// Debug/test hooks (used by automated Playwright tests)
-window.MG = { game, newRun, setState, view };
+// Debug/test hooks (used by automated Playwright tests).
+// quickStart bypasses the menus: fresh medium campaign in slot 2 (test slot).
+window.MG = {
+  game, setState, view, startLevel,
+  quickStart: (diff = 'medium', slot = 2) => { audio.unlock(); newGame(slot, diff); },
+  newRun: () => { // legacy hook kept for older test scripts
+    if (!game.campaign) window.MG.quickStart();
+    else restartLevel();
+  },
+};
 
 // ---- PWA: install + update-on-launch -------------------------------------------
 // sw.js precaches everything under a versioned cache. updateViaCache:'none' +

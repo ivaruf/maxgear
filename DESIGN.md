@@ -82,6 +82,19 @@ projectile appearance from js/bulletStyle.js (style recomputed on weapon-stat ch
 double-buffered; cyan-anchored hue clamp ±40° is LOAD-BEARING — player fire must never
 read as enemy/gate colors).
 
+## Campaign (v1.4)
+js/campaign.js: LEVELS (4 defs: length/tier/enemyPool/gateRows/end) + DIFFICULTIES
+(enemyHp/enemyDmg/density/bossSec). js/saves.js: 3 localStorage slots, autosaved at level
+clear ({difficulty, levelIndex=NEXT, tracks, score, kills, cleared}). main.js flow:
+title → slots → newgame(difficulty) → startLevel(i); build persists via startLevel's
+carry; game.campaign.introduced (Set) makes enemy showcases fire once per campaign.
+level.js createLevel(levelDef, difficulty, introduced) GENERATES the timeline (tutorial
+on fresh L1 → showcases → blocks → midpoint set-piece → recovery → end fight); gate pools
+tier-filtered (ENTRIES[key].tier). enemies.js: difficulty multiplies non-boss hp + all
+damage; foreman = 2-phase mini-boss (main.js DPS-scales it at 0.55×, ironclad 1×,
+× bossSec/24). New machines: bomber (game.mortars, telegraphed AoE, player-only damage),
+welder (heals most-damaged non-boss in 260), turret (static, heavy: survives all contact).
+
 ## Level format (level.js, data-driven)
 Timeline of segments keyed by distance: `{ at: 900, type:'wave'|'gates'|'obstacles'|'pickup'|'boss', ... }`.
 Director spawns a segment when `player.z + SPAWN_AHEAD >= at`. Boss segment sets `runSpeed = 0`

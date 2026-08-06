@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.3.0'; // run randomness: enemy variety/ambushes, crate jackpots, narrow/triple gates
+const VERSION = 'v1.4.0'; // campaign: 4 levels, saves, difficulties, new machines
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -18,6 +18,7 @@ const ASSETS = [
   './css/style.css',
   './js/audio.js',
   './js/bulletStyle.js',
+  './js/campaign.js',
   './js/collisions.js',
   './js/config.js',
   './js/effects.js',
@@ -32,6 +33,7 @@ const ASSETS = [
   './js/player.js',
   './js/projectiles.js',
   './js/render.js',
+  './js/saves.js',
   './js/ui.js',
   './js/upgrades.js',
   './js/utils.js',

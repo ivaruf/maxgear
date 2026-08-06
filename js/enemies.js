@@ -4,7 +4,7 @@
 // Behaviors are named functions in `behaviors`; visuals are per-type in `SHAPES`.
 
 import { ROAD_HALF, DESPAWN_BEHIND } from './config.js';
-import { clamp, lerp, rand, randInt, chance } from './utils.js';
+import { clamp, lerp, rand, randInt, chance, dist2, choice } from './utils.js';
 import { project } from './render.js';
 import { fireEnemyShot, spawnShards } from './projectiles.js';
 import { fx } from './effects.js';
@@ -70,6 +70,39 @@ export const ENEMY_TYPES = {
     holdDist: 600, telegraph: 0.7, dashSpeed: 780, dashTime: 1.4, cooldown: 0.7,
     homeRate: 0.4, homeMax: 40,
   },
+  bomber: {
+    // v1.4: lobs mortars at a LED landing point; the dashed ring telegraph is
+    // the whole fight — stand anywhere else.
+    hp: 55, speed: 95, damage: 18, radius: 22, score: 60,
+    color: '#c96a2e', behavior: 'bomber', dropChance: 0.14,
+    holdRange: [620, 780], strafeSpeed: 55,
+    mortarEvery: [2.5, 3.5], mortarR: 70, mortarFlight: 1.6,
+  },
+  welder: {
+    // support: heals the most damaged machine nearby. Kill it first.
+    hp: 30, speed: 150, damage: 8, radius: 15, score: 70,
+    color: '#7fd98a', behavior: 'welder', dropChance: 0.2,
+    holdRange: [760, 880], strafeSpeed: 90, healRange: 260, healPerSec: 12,
+  },
+  turret: {
+    // static emplacement: never moves, survives contact (heavy), 3-round bursts.
+    hp: 155, speed: 0, damage: 20, radius: 24, score: 65,
+    color: '#8a93a8', behavior: 'turret', dropChance: 0.15, heavy: true,
+    fireEvery: [2.6, 3.4], burstRounds: 3, burstEvery: 0.12,
+    shotSpeed: 380, shotDamage: 9, shotColor: '#ffb86b',
+  },
+  foreman: {
+    // v1.4 mini-boss capping campaign levels 1-3. Like the ironclad, hp is a
+    // divisor baseline: main.js spawns it DPS-scaled (~55% of a boss fight).
+    hp: 2200, speed: 110, damage: 30, radius: 40, score: 800,
+    color: '#d98a2e', behavior: 'foreman', dropChance: 0,
+    isBoss: true, miniboss: true, name: 'FOREMAN',
+    shotSpeed: 420, shotDamage: 11, shotColor: '#ffb060',
+    phases: [ // hp halves -> phase index
+      { holdZ: 600, strafe: 110, tint: '#d98a2e', fireEvery: 2.2, summonEvery: 7.0, slamEvery: 0 },
+      { holdZ: 560, strafe: 170, tint: '#ff5e3a', fireEvery: 2.4, summonEvery: 6.0, slamEvery: 0 },
+    ],
+  },
   boss: {
     // hp here is only the divisor baseline: main.js spawns the boss with an
     // hpScale computed from the player's ACTUAL dps (clamped 4k..45k) so the
@@ -91,15 +124,20 @@ export function spawnEnemy(game, typeKey, x, z, opts = {}) {
   if (!t) { console.error(`Unknown enemy type: ${typeKey}`); return null; }
   const hpScale = opts.hpScale ?? game.level?.hpScale ?? 1;
   const elite = !!opts.elite;
+  // Difficulty (v1.4): regular machines scale hp by enemyHp (bosses/foremen are
+  // player-DPS-scaled by main.js instead); EVERYONE hits harder on hard.
+  const diff = game.difficulty;
+  const diffHp = t.isBoss ? 1 : (diff && diff.enemyHp) || 1;
+  const diffDmg = (diff && diff.enemyDmg) || 1;
   const radius = t.radius * (elite ? ELITE.radiusMul : 1);
-  const maxHp = t.hp * hpScale * (elite ? ELITE.hpMul : 1);
-  const shieldHp = (t.shieldHp ?? 0) * hpScale * (elite ? ELITE.hpMul : 1);
+  const maxHp = t.hp * hpScale * (elite ? ELITE.hpMul : 1) * diffHp;
+  const shieldHp = (t.shieldHp ?? 0) * hpScale * (elite ? ELITE.hpMul : 1) * diffHp;
   const e = {
     type: typeKey, def: t,
     x: clamp(x, -ROAD_HALF + radius, ROAD_HALF - radius), z,
     hp: maxHp, maxHp,
     speed: t.speed * (opts.speedScale ?? 1),
-    damage: t.damage,
+    damage: t.damage * diffDmg,
     radius,
     score: Math.round(t.score * (elite ? ELITE.scoreMul : 1)),
     color: t.color,
@@ -136,7 +174,7 @@ export function spawnEnemy(game, typeKey, x, z, opts = {}) {
     e.slamTimer = 5;
     game.boss = e;
     audio.bossRoar();
-    fx.bossIntro ? fx.bossIntro() : fx.shake(8, 0.6);
+    fx.bossIntro ? fx.bossIntro(t.miniboss ? 0.7 : undefined) : fx.shake(8, 0.6);
   }
   return e;
 }
@@ -174,9 +212,10 @@ function liveAdds(game) {
 
 function shotFrom(game, e, tx, tz, speedMul = 1, dmgMul = 1, opts) {
   const d = e.def;
+  const diffDmg = (game.difficulty && game.difficulty.enemyDmg) || 1;
   fireEnemyShot(
     game, e.x, e.z - e.radius * 0.6, tx, tz,
-    d.shotSpeed * speedMul, d.shotDamage * dmgMul,
+    d.shotSpeed * speedMul, d.shotDamage * dmgMul * diffDmg,
     opts || { color: d.shotColor || '#ff7096' },
   );
 }
@@ -384,7 +423,153 @@ const behaviors = {
       summonAdds(game, e);
     }
   },
+
+  // bomber: hangs back and drops mortars on a LED landing point. The dashed
+  // ring (drawMortars) is the threat — the bomber itself barely closes.
+  bomber(e, dt, game) {
+    const p = game.player;
+    if (game.boss) { behaviors.rush(e, dt, game); return; }
+    holdAhead(e, dt, game, e.holdDist, Math.max(game.runSpeed * 0.85, 50));
+    strafe(e, dt, e.def.strafeSpeed, 12);
+    e.fireTimer -= dt;
+    if (e.fireTimer <= 0 && e.z > p.z + 200) {
+      e.fireTimer = rand(e.def.mortarEvery[0], e.def.mortarEvery[1]);
+      const ms = game.mortars || (game.mortars = []);
+      ms.push({
+        x: clamp(p.x + rand(-60, 60), -ROAD_HALF + 24, ROAD_HALF - 24),
+        z: p.z + game.runSpeed * 1.0 + rand(-60, 60),
+        sx: e.x, sz: e.z,               // launch point (arc visual)
+        t: e.def.mortarFlight, t0: e.def.mortarFlight,
+        r: e.def.mortarR, dmg: e.damage,
+        dead: false,
+      });
+      fx.muzzle(e.x, e.z - e.radius * 0.4, 0, -1, '#ffb86b');
+      fx.hitSpark(e.x, e.z - e.radius, '#e6e1d7');
+    }
+  },
+
+  // welder: field mechanic — beams hp into the most damaged machine in range.
+  welder(e, dt, game) {
+    if (game.boss) { behaviors.rush(e, dt, game); return; }
+    holdAhead(e, dt, game, e.holdDist, Math.max(game.runSpeed * 0.9, 55));
+    strafe(e, dt, e.def.strafeSpeed, 12);
+    e.fireTimer -= dt;
+    if (e.fireTimer > 0) return;
+    e.fireTimer = 0.25;
+    let best = null, worst = 1;
+    const r2 = e.def.healRange * e.def.healRange;
+    const n = game.enemies.length;
+    for (let i = 0; i < n; i++) {
+      const o = game.enemies[i];
+      if (o.dead || o === e || o.isBoss || o.hp >= o.maxHp) continue;
+      if (dist2(o.x, o.z, e.x, e.z) > r2) continue;
+      const f = o.hp / o.maxHp;
+      if (f < worst) { worst = f; best = o; }
+    }
+    if (best) {
+      best.hp = Math.min(best.maxHp, best.hp + e.def.healPerSec * 0.25);
+      fx.arc(e.x, e.z, best.x, best.z, '#7fd98a', 1.5, 0.2);
+      e.welding = 1;
+    } else {
+      e.welding = 0;
+    }
+  },
+
+  // turret: a bolted-down emplacement. All threat, no legs.
+  turret(e, dt, game) {
+    const p = game.player;
+    if (e.burstLeft > 0) {
+      e.burstT -= dt;
+      if (e.burstT <= 0) {
+        e.burstT = e.def.burstEvery;
+        e.burstLeft--;
+        const flight = (e.z - p.z) / (e.def.shotSpeed + game.runSpeed);
+        shotFrom(game, e, p.x, p.z + game.runSpeed * flight * 0.85);
+      }
+      return;
+    }
+    e.fireTimer -= dt;
+    const wind = WINDUP * 1.6;
+    e.charge = e.fireTimer < wind ? 1 - Math.max(e.fireTimer, 0) / wind : 0;
+    if (e.fireTimer <= 0 && e.z > p.z + 150) {
+      e.fireTimer = rand(e.def.fireEvery[0], e.def.fireEvery[1]);
+      e.charge = 0;
+      e.burstLeft = e.def.burstRounds;
+      e.burstT = 0;
+    }
+  },
+
+  // foreman: the mid-campaign mini-boss. Two phases, volleys then sweeps,
+  // summons from the level's own enemy pool. Simpler cousin of the ironclad.
+  foreman(e, dt, game) {
+    const p = game.player;
+    const phases = e.def.phases;
+    const want = e.hp / e.maxHp <= 0.5 ? 2 : 1;
+    if (want > e.bossPhase) {
+      e.bossPhase = want;
+      const ph2 = phases[1];
+      e.color = ph2.tint;
+      e.phaseFlash = 1.0;
+      e.fireTimer = 1.0;
+      e.summonTimer = 2;
+      fx.shake(9, 0.5);
+      fx.flash(ph2.tint, 0.25, 0.4);
+      fx.explosion(e.x, e.z, e.radius * 1.4, ph2.tint);
+      fx.textPop(e.x, e.z + 30, 'FURIOUS!', ph2.tint);
+      audio.bossRoar();
+    }
+    const ph = phases[e.bossPhase - 1];
+    e.phaseFlash = Math.max(0, e.phaseFlash - dt);
+
+    // Overheat failsafe (same idea as the ironclad, earlier + gentler)
+    if (e.age > 60) {
+      e.hp -= e.maxHp * 0.003 * (e.age - 60) * dt;
+      if (e.hp <= 0) { killEnemy(game, e, 'shot'); return; }
+    }
+
+    e.z += clamp((p.z + ph.holdZ - e.z) * 1.8, -240, 240) * dt;
+    strafe(e, dt, ph.strafe, 14);
+
+    if (e.burstLeft > 0) {
+      stepBurst(e, dt, game);
+    } else {
+      e.fireTimer -= dt;
+      e.charge = e.fireTimer < WINDUP ? 1 - Math.max(e.fireTimer, 0) / WINDUP : 0;
+      if (e.fireTimer <= 0) {
+        e.fireTimer = ph.fireEvery;
+        e.charge = 0;
+        if (e.bossPhase === 1) startBurst(e, 'volley', 3, 0.14);
+        else startSweep(e, chance(0.5) ? 1 : -1);
+      }
+    }
+
+    e.summonTimer -= dt;
+    if (e.summonTimer <= 0) {
+      e.summonTimer = ph.summonEvery;
+      summonForeman(game, e);
+    }
+  },
 };
+
+// Foreman adds come from the LEVEL's own pool (minus support/static machines,
+// which read wrong inside an arena), capped like the ironclad's.
+function summonForeman(game, e) {
+  const live = liveAdds(game);
+  if (live >= 6) return;
+  let pool = game.levelDef ? game.levelDef.enemyPool : null;
+  if (!pool || pool === 'all') pool = ['grunt', 'runner', 'mini'];
+  pool = pool.filter((k) => {
+    const d = ENEMY_TYPES[k];
+    return d && !d.isBoss && k !== 'turret' && k !== 'bomber' && k !== 'welder';
+  });
+  if (!pool.length) pool = ['grunt'];
+  const n = Math.min(2, 6 - live);
+  for (let i = 0; i < n; i++) {
+    spawnEnemy(game, choice(pool), e.x + rand(-130, 130), e.z - rand(40, 120),
+      { extra: { dropChance: 0.3 } });
+  }
+  fx.hitSpark(e.x, e.z - e.radius, '#ffb060');
+}
 
 // ---- boss internals ---------------------------------------------------------
 function updateBossPhase(e, game) {
@@ -575,6 +760,26 @@ export function updateEnemies(game, dt) {
     // Passed behind the player: despawn silently (no damage, no reward)
     if (!e.isBoss && e.z < game.player.z - DESPAWN_BEHIND) e.dead = true;
   }
+
+  // ---- mortars (bomber shells): flight timer -> telegraphed AoE on the road.
+  // Player-only damage; main.js owns the array + sweep.
+  const ms = game.mortars;
+  if (ms && ms.length) {
+    const p = game.player;
+    for (let i = 0; i < ms.length; i++) {
+      const m = ms[i];
+      if (m.dead) continue;
+      m.t -= dt;
+      if (m.t <= 0) {
+        m.dead = true;
+        fx.explosion(m.x, m.z, m.r, '#ff8a5a');
+        audio.explode();
+        if (dist2(p.x, p.z, m.x, m.z) < m.r * m.r) damagePlayer(game, m.dmg);
+      } else if (m.z < p.z - DESPAWN_BEHIND) {
+        m.dead = true; // landed behind the camera while paused-ish edge case
+      }
+    }
+  }
 }
 
 // Called by collisions.js BEFORE normal damage. Return true if this module
@@ -689,6 +894,12 @@ export function enemyContact(game, e) {
   const p = game.player;
   if (e.isBoss) {
     if (p.invuln <= 0) { damagePlayer(game, e.damage); fx.shake(6, 0.2); }
+    return;
+  }
+  // heavy emplacements (turret) hurt you and stay standing — even a shield-token
+  // ram just bounces off several tons of bolted iron
+  if (e.def.heavy) {
+    if (p.invuln <= 0) { damagePlayer(game, e.damage); fx.shake(4, 0.18); }
     return;
   }
   if (p.invuln > 0.55) { killEnemy(game, e, 'contact'); return; }
@@ -1218,6 +1429,127 @@ const SHAPES = {
 
   // IRONCLAD: a clockwork war engine — layered gears, riveted armour, twin
   // stacks, and a furnace visor tinted by the phase.
+  // v1.4 — pot-bellied mortar boiler
+  bomber(ctx, e, r) {
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : IRON;      // mortar tube, angled back
+    ctx.save();
+    ctx.rotate(-0.5);
+    ctx.fillRect(-r * 0.18, -r * 1.7, r * 0.36, r * 1.1);
+    ctx.restore();
+    ctx.fillStyle = body;                                 // pot belly
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.85, 0, 0, TAU);
+    ctx.fill();
+    if (r > FINE) {
+      ctx.strokeStyle = 'rgba(240,180,41,0.75)';          // brass hoops
+      ctx.lineWidth = Math.max(1, r * 0.09);
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 0.72, r * 0.62, 0, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#ffb86b';                          // furnace mouth
+      ctx.beginPath(); ctx.arc(0, r * 0.25, r * 0.2, 0, TAU); ctx.fill();
+    }
+  },
+
+  // v1.4 — thin field mechanic with a welding mask; sparks while beaming
+  welder(ctx, e, r) {
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : IRON;       // slim frame
+    ctx.fillRect(-r * 0.4, -r * 0.25, r * 0.8, r * 1.05);
+    ctx.fillStyle = body;                                 // round mask head
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.45, r * 0.62, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#1a1512';                            // visor slit
+    ctx.fillRect(-r * 0.38, -r * 0.58, r * 0.76, r * 0.22);
+    if (r > FINE) {
+      ctx.fillStyle = e.color;                            // torch arm
+      ctx.fillRect(r * 0.38, -r * 0.1, r * 0.5, r * 0.16);
+      if (e.welding) {                                    // spark at the tip
+        ctx.fillStyle = '#ecfff0';
+        ctx.beginPath(); ctx.arc(r * 0.95, 0, r * 0.16 * (1 + 0.4 * Math.sin(e.age * 40)), 0, TAU); ctx.fill();
+      }
+    }
+  },
+
+  // v1.4 — bolted-down emplacement: riveted base + barrel tracking the player
+  turret(ctx, e, r, k, p) {
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : '#4b3a2c';  // sandbag/riveted base
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.1, r * 0.55);
+    ctx.lineTo(-r * 0.75, -r * 0.35);
+    ctx.lineTo(r * 0.75, -r * 0.35);
+    ctx.lineTo(r * 1.1, r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = body;                                 // cupola
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.3, r * 0.55, 0, TAU);
+    ctx.fill();
+    // barrel swings toward the player (screen-space, clamped like the shooter's)
+    const ang = clamp(Math.atan2(p.x - e.x, e.z - p.z), -0.7, 0.7);
+    ctx.save();
+    ctx.translate(0, -r * 0.3);
+    ctx.rotate(ang);
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : IRON;
+    ctx.fillRect(-r * 0.11, 0, r * 0.22, r * 1.35);
+    if (e.charge > 0) {                                   // wind-up glow at the muzzle
+      ctx.fillStyle = `rgba(255,184,107,${0.35 + e.charge * 0.6})`;
+      ctx.beginPath(); ctx.arc(0, r * 1.35, r * 0.2 * (0.6 + e.charge), 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+    if (r > FINE) {
+      ctx.strokeStyle = 'rgba(240,180,41,0.6)';           // brass base rim
+      ctx.lineWidth = Math.max(1, r * 0.07);
+      ctx.beginPath(); ctx.moveTo(-r * 1.1, r * 0.55); ctx.lineTo(r * 1.1, r * 0.55); ctx.stroke();
+    }
+  },
+
+  // v1.4 — the FOREMAN: broad-shouldered walker, wrench arm, hard-hat dome
+  foreman(ctx, e, r) {
+    const body = e.flash > 0 ? '#ffffff' : e.color;
+    const metal = e.flash > 0 ? '#ffffff' : '#4b3a2c';
+    ctx.fillStyle = metal;                                // wrench arm (behind)
+    ctx.save();
+    ctx.rotate(0.55 + Math.sin(e.age * 2.2) * 0.1);
+    ctx.fillRect(r * 0.5, -r * 0.16, r * 1.05, r * 0.32);
+    ctx.beginPath(); ctx.arc(r * 1.55, 0, r * 0.3, 0.6, TAU - 0.6); ctx.stroke();
+    ctx.strokeStyle = metal; ctx.lineWidth = Math.max(2, r * 0.16); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = body;                                 // broad shoulders slab
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.05, r * 0.7);
+    ctx.lineTo(-r * 0.95, -r * 0.4);
+    ctx.lineTo(r * 0.95, -r * 0.4);
+    ctx.lineTo(r * 1.05, r * 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = e.flash > 0 ? '#ffffff' : '#e8b84a';  // hard-hat dome
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.55, r * 0.5, Math.PI, 0);
+    ctx.fill();
+    ctx.fillStyle = '#1a1512';                            // visor
+    ctx.fillRect(-r * 0.34, -r * 0.52, r * 0.68, r * 0.2);
+    if (e.charge > 0) {                                   // volley wind-up
+      ctx.fillStyle = `rgba(255,176,96,${0.3 + e.charge * 0.6})`;
+      ctx.beginPath(); ctx.arc(0, -r * 0.1, r * 0.24 * (0.7 + e.charge * 0.6), 0, TAU); ctx.fill();
+    }
+    if (e.bossPhase >= 2) {                               // furious: molten seams
+      ctx.strokeStyle = 'rgba(255,94,58,0.85)';
+      ctx.lineWidth = Math.max(1.4, r * 0.07);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.6, r * 0.4); ctx.lineTo(-r * 0.25, -r * 0.1); ctx.lineTo(-r * 0.4, -r * 0.35);
+      ctx.moveTo(r * 0.5, r * 0.5); ctx.lineTo(r * 0.2, 0);
+      ctx.stroke();
+    }
+    if (e.phaseFlash > 0) {
+      ctx.globalAlpha = Math.min(0.5, e.phaseFlash);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(0, 0, r * 1.25, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  },
+
   boss(ctx, e, r) {
     const ph = e.bossPhase;
     const col = e.flash > 0 ? '#ffffff' : e.color;
@@ -1325,7 +1657,45 @@ function drawTelegraph(ctx, view, ax, az, bx, bz, color, width, alpha) {
   ctx.restore();
 }
 
+// Bomber shells: landing telegraph (dashed ring closing in) + the lobbed shell.
+function drawMortars(ctx, view, game) {
+  const ms = game.mortars;
+  if (!ms || !ms.length) return;
+  for (const m of ms) {
+    if (m.dead) continue;
+    const prog = 1 - m.t / m.t0;                       // 0 launch .. 1 impact
+    const { sx, sy, f } = project(view, m.x, m.z);
+    const k = f * view.unitScale;
+    ctx.save();
+    // landing ring: grows + brightens as the shell falls
+    ctx.strokeStyle = `rgba(255,110,60,${0.3 + prog * 0.55})`;
+    ctx.setLineDash([6 * k, 5 * k]);
+    ctx.lineWidth = Math.max(1.5, 2.4 * k);
+    const rr = m.r * k * (0.45 + 0.55 * prog);
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, rr, rr * 0.32, 0, 0, TAU);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(190,60,20,${prog * prog * 0.3})`;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, rr * 0.85, rr * 0.27, 0, 0, TAU);
+    ctx.fill();
+    // shell in flight: lerp launch->landing with a parabolic hop
+    const lx = m.sx + (m.x - m.sx) * prog;
+    const lz = m.sz + (m.z - m.sz) * prog;
+    const pos = project(view, lx, lz);
+    const h = 560 * prog * (1 - prog);                 // world-units apex ~140
+    ctx.fillStyle = '#2b2118';
+    ctx.beginPath();
+    ctx.arc(pos.sx, pos.sy - h * pos.f * view.unitScale * 0.5,
+      Math.max(2, 5 * pos.f * view.unitScale), 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 export function drawEnemies(ctx, view, game) {
+  drawMortars(ctx, view, game);   // under everything: they are road markings
   const sorted = [...game.enemies].sort((a, b) => b.z - a.z);
   const p = game.player;
   for (const e of sorted) {

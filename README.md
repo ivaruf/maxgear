@@ -41,6 +41,21 @@ screen, never mid-run. (Without a bump, returning visitors keep playing the cach
 cached build. While developing, either bump `VERSION`, or use DevTools → Application →
 Service Workers → "Update on reload" / "Bypass for network".
 
+## The Campaign (v1.4)
+
+Four short levels (~1.5–2 min each): **The Outskirts → The Foundry → The Shipyards →
+The Ironworks**. Your build and score carry across levels (HP refills each level); levels
+1–3 end with a **FOREMAN** mini-boss, the finale with the IRONCLAD. Higher levels unlock
+deeper upgrade tiers — exotic tracks like Tesla Coil, Flywheels and Broadside appear from
+The Foundry and The Shipyards onward — and introduce new machines: the mortar-lobbing
+**Bomber** (dodge the dashed ring!), the enemy-healing **Welder** (shoot it first), and
+bolted-down **Turrets** that survive anything ramming them.
+
+**3 save slots per device** (offline, localStorage) — progress autosaves at every level
+clear. Pick **EASY / MEDIUM / HARD** when starting a slot: difficulty scales enemy
+toughness, damage, spawn density and boss endurance. `R` restarts the current level with
+the build you entered it with.
+
 ## Controls
 
 | Action | Desktop | Mobile |
@@ -49,7 +64,7 @@ Service Workers → "Update on reload" / "Bypass for network".
 | Shoot | automatic | automatic |
 | Start | `Space` / `Enter` / click / tap | tap |
 | Pause | `Esc` / `P` (or ⏸ button) | ⏸ button |
-| Restart | `R` (any time) | tap after win/lose |
+| Restart level | `R` (any time) | tap after defeat |
 | Mute | `M` (or 🔊 button) | 🔊 button |
 
 **Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
