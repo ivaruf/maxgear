@@ -384,7 +384,8 @@ const SCRIPTS = {
     cog(x, W * 0.8, H * 0.55, 15, t, { flash: (p * 3) % 1 > 0.9 });
     for (let i = 0; i <= n; i++) {
       const sp = (p * 3 + i * 0.23) % 1;
-      shot(x, env, W * 0.25, H * (0.45 + 0.07 * i), W * 0.76, H * 0.55, sp, 1.1);
+      // i 0 = mothership; escorts echo at half strength with smaller shells
+      shot(x, env, W * 0.25, H * (0.45 + 0.07 * i), W * 0.76, H * 0.55, sp, i === 0 ? 1.1 : 0.75);
     }
   },
   plating(x, W, H, p, t, env) {

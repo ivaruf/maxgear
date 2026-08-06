@@ -91,7 +91,7 @@
 //   Riders that DO have a field: burn LV4 spread (burnSpread 90), frost LV5
 //   (frostHard 1), lance LV5 (pierceShield 1), saw LV3 shot-shred (sawCount>=3).
 
-import { BASE_STATS, CAPS, PLAYER_DEFAULTS } from './config.js';
+import { BASE_STATS, CAPS, PLAYER_DEFAULTS, ALLY_SHOT } from './config.js';
 import { clamp, choice } from './utils.js';
 
 const MAXHP_FLOOR = 30;          // plating can never trade the hull below this
@@ -215,7 +215,7 @@ const TRACK_BLURBS = {
   saw: 'Brass flywheels orbit your hull, shredding what they touch. LV3+ blocks enemy shots.',
   broadside: 'Auxiliary guns fire to the sides and rear. LV5 is a full ring of iron.',
   shrapnel: 'Machines burst into shrapnel on death, wounding their neighbours.',
-  squad: 'Escort ships orbit you and fire your full volley. Mortal — they soak hits for you.',
+  squad: 'Escort ships orbit you and echo your volley at half strength — lighter shells, same guns. Mortal — they soak hits for you.',
   plating: 'Riveted armour: more hull AND a damage reduction from LV3.',
   aegis: 'A recharging aether shield absorbs a hit outright. LV3+ shocks nearby machines.',
   siphon: 'Condense the steam of the fallen: kills heal you, capped per second.',
@@ -380,7 +380,9 @@ export function estimateBossDps(player) {
   const s = player.stats || BASE_STATS;
   const perShot = s.damage * (1 + s.critChance * (s.critMul - 1));
   const hitFrac = 0.35 + (s.homing ? 0.15 : 0);
-  const volley = (perShot * s.projectiles * (1 + s.squad) * hitFrac) / s.fireInterval;
+  // v1.5.3: escorts volley at ALLY_SHOT.dmgMul strength, so they count as
+  // fractional shooters here — else squad-build boss fights overshoot bossSec.
+  const volley = (perShot * s.projectiles * (1 + s.squad * ALLY_SHOT.dmgMul) * hitFrac) / s.fireInterval;
   return volley
     + s.burnDps * (trackLevel(player, 'burn') >= LV5 ? 1.5 : 1)
     + (s.blastFrac * perShot * 0.25) / s.fireInterval

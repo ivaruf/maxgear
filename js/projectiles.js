@@ -111,6 +111,7 @@ function makeProjectile(x, z, vx, vz, damage, crit, style, life, mode, stats) {
     chained: false,
     aux: mode === MODE_AUX,
     shard: mode === MODE_SHARD,
+    sizeMul: 1,          // draw-only scale (escort shells are 0.7); hitbox is `radius`
     style,
     sx: 0, sy: 0, dr: 0, rot: 0, tier: 0, skip: false,
     targetT: 0, target: null,
@@ -140,22 +141,30 @@ function critDamage(stats, base, crit) {
 }
 
 // Fire one forward volley from (x, z) using the shooter's stats.
-export function fireVolley(game, x, z, stats) {
+// `tune` (optional, e.g. config.ALLY_SHOT) derates the volley: damage and the
+// burn DoT scale by dmgMul, the shells DRAW at sizeMul (hitboxes untouched).
+export function fireVolley(game, x, z, stats, tune) {
   const n = Math.round(stats.projectiles);
   const spread = (stats.spreadDeg * Math.PI) / 180;
   const style = (game.player && game.player.bulletStyle) || BASE_STYLE;
+  const dmgMul = tune ? tune.dmgMul : 1;
   for (let i = 0; i < n; i++) {
     const angle = (i - (n - 1) / 2) * spread;
     const crit = critRoll(stats);
-    push(game, makeProjectile(
+    const proj = makeProjectile(
       x, z,
       Math.sin(angle) * PROJECTILE.speed,
       Math.cos(angle) * PROJECTILE.speed,
-      critDamage(stats, stats.damage, crit), crit,
+      critDamage(stats, stats.damage, crit) * dmgMul, crit,
       style, PROJECTILE.life, MODE_MAIN, stats,
-    ));
+    );
+    if (tune) {
+      proj.sizeMul = tune.sizeMul;
+      proj.burnDps *= dmgMul;
+    }
+    push(game, proj);
   }
-  fx.muzzle(x, z + 24, 0, 1, style.spark);
+  fx.muzzle(x, z + 24, 0, 1, style.spark, tune ? tune.sizeMul : 1);
 }
 
 /**
@@ -347,7 +356,7 @@ export function drawProjectiles(ctx, view, game) {
     const pr = project(view, p.x, p.z);
     p.sx = pr.sx;
     p.sy = pr.sy;
-    p.dr = Math.max(p.radius * pr.f * view.unitScale * 0.85, 2.4);
+    p.dr = Math.max(p.radius * (p.sizeMul || 1) * pr.f * view.unitScale * 0.85, 2.4);
     p.tier = p.dr < TIER_MID_DR ? TIER_FAR : (p.dr < TIER_NEAR_DR ? TIER_MID : TIER_NEAR);
     p.rot = Math.atan2(p.vx * view.unitScale, p.vz * view.vScale);
     // styles are shared objects and ensureBulletSprites is a no-op once baked;

@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.5.2'; // title version tag + user opt-in updates
+const VERSION = 'v1.5.3'; // version tag + opt-in updates + escort half-strength volleys
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

@@ -164,14 +164,14 @@ export const fx = {
   // to brass so the barrel itself reads as machined metal. `color` is optional and
   // lets projectiles.js tint the flash with the live bullet style (default = cyan,
   // so every existing call site is unchanged).
-  muzzle(x, z, dirX = 0, dirZ = 1, color) {
+  muzzle(x, z, dirX = 0, dirZ = 1, color, scale = 1) {
     const len = Math.hypot(dirX, dirZ) || 1;
     const ux = dirX / len, uz = dirZ / len;
     const core = color || AETHER;
-    spawn('flash', x + ux * 6, 6, z + uz * 6, 0, 0, 0, 0.07, 6, core, 0, 0, 0.85, 11);
+    spawn('flash', x + ux * 6, 6, z + uz * 6, 0, 0, 0, 0.07, 6 * scale, core, 0, 0, 0.85, 11 * scale);
     for (let i = 0; i < 2; i++) {
       spawn('spark', x, 6, z, ux * rand(40, 130) + rand(-50, 50), rand(-10, 40), uz * rand(180, 320),
-        0.09, 1.5, i === 0 ? (color || '#d9fbff') : '#ffdca8', 5, 0, 0.9, 0);
+        0.09, 1.5 * scale, i === 0 ? (color || '#d9fbff') : '#ffdca8', 5, 0, 0.9, 0);
     }
   },
 

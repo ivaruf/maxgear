@@ -34,7 +34,7 @@
 // add a top-level call (or `const x = killEnemy`) to either side of this edge.
 // Verified in node with BOTH entry orders (player-first and enemies-first).
 
-import { ROAD_HALF, PLAYER_DEFAULTS, BASE_STATS, CAPS, CAM_BACK, FOCAL } from './config.js';
+import { ROAD_HALF, PLAYER_DEFAULTS, BASE_STATS, CAPS, CAM_BACK, FOCAL, ALLY_SHOT } from './config.js';
 import { clamp } from './utils.js';
 import { fireVolley, fireAux, AUX_ANGLES } from './projectiles.js';
 import {
@@ -242,7 +242,8 @@ export function updatePlayer(game, dt, input) {
   if (p.fireTimer <= 0) {
     p.fireTimer = p.stats.fireInterval * (p.overdriveT > 0 ? 0.6 : 1);
     fireVolley(game, p.x, p.z + 20, p.stats);
-    for (const a of p.allies) fireVolley(game, a.x, a.z + 14, p.stats);
+    // v1.5.3: escorts volley in sync but derated — half damage, smaller shells
+    for (const a of p.allies) fireVolley(game, a.x, a.z + 14, p.stats, ALLY_SHOT);
     if (p.stats.auxLv > 0) fireAux(game, p.x, p.z, p.stats);
     audio.shoot();
   }

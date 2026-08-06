@@ -96,6 +96,14 @@ export const PROJECTILE = {
   life: 2.2,                         // s before auto-despawn
 };
 
+// v1.5.3 escort fire tune: allies volley in sync with the mothership but at
+// reduced strength, drawn as smaller shells. dmgMul also scales their burn
+// payload (a DoT is damage); blast/chain riders are fractions OF the shot's
+// damage so they follow automatically. Hitboxes keep PROJECTILE.radius —
+// sizeMul is draw-only. upgrades.js' boss-HP estimator uses dmgMul too, so
+// boss fights stay on their time budget for squad builds.
+export const ALLY_SHOT = { dmgMul: 0.5, sizeMul: 0.7 };
+
 export const LIMITS = {
   projectiles: 400,                  // max live player projectiles (maxed squad+fireRate+multishot needs headroom)
   enemyShots: 120,
