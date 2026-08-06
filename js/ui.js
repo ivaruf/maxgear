@@ -24,6 +24,7 @@ import {
   trackLevel, previewSlot, slotLabel,
 } from './upgrades.js';
 import { bakeIconSprite, iconDataURL, clearIconCache, hasIcon, drawIcon } from './icons.js';
+import { startPreview } from './previews.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -81,6 +82,12 @@ let prevStrip = '';
 let prevLegend = '';
 let armedDelete = -1;    // slot index with an armed two-tap delete
 let armedTimer = null;
+// v1.5 level-clear KEEP screen state
+let lcSelection = new Set();
+let lcNeed = 0;
+let lcOwned = [];        // [{key, lv}]
+let lcBrowse = null;     // key shown in the detail pane
+let lcStop = null;       // running preview's stop()
 let prevLevels = null;   // { key: level } as last RENDERED — drives the .bump pop
 
 function esc(v) {
@@ -471,6 +478,33 @@ function paintLegend(p, slots) {
   }
 }
 
+// ---- v1.5 KEEP screen internals ---------------------------------------------
+function stopKeepPreview() {
+  if (lcStop) { try { lcStop(); } catch (e) { /* noop */ } lcStop = null; }
+}
+
+function browseKeep(key) {
+  lcBrowse = key;
+  const def = TRACKS[key];
+  const own = lcOwned.find((o) => o.key === key);
+  if (!els || !def || !own) return;
+  els.lcDname.textContent = `${def.name} · LV${own.lv}`;
+  els.lcDblurb.textContent = def.blurb || '';
+  stopKeepPreview();
+  lcStop = startPreview(els.lcPreview, key, own.lv);
+}
+
+function paintKeepGrid() {
+  if (!els) return;
+  for (const card of els.lcGrid.querySelectorAll('[data-keep]')) {
+    card.classList.toggle('keep', lcSelection.has(card.dataset.keep));
+    card.classList.toggle('browse', card.dataset.keep === lcBrowse);
+  }
+  const ready = lcSelection.size === lcNeed;
+  els.btnContinue.disabled = !ready;
+  els.btnContinue.classList.toggle('pulse', ready);
+}
+
 export const ui = {
   init(game, actions) {
     els = {
@@ -496,7 +530,10 @@ export const ui = {
       slotList: $('slot-list'),
       diffList: $('diff-list'),
       lcHeading: $('lc-heading'), lcSub: $('lc-sub'),
-      lcStats: $('lc-stats'), lcBuild: $('lc-build'),
+      lcStats: $('lc-stats'), lcNote: $('lc-note'),
+      lcGrid: $('lc-grid'), lcPreview: $('lc-preview'),
+      lcDname: $('lc-dname'), lcDblurb: $('lc-dblurb'),
+      btnContinue: $('btn-continue'),
       victorySub: $('victory-sub'),
       defeatStats: $('defeat-stats'),
       victoryStats: $('victory-stats'),
@@ -557,7 +594,27 @@ export const ui = {
     tap(els.muteBtn, actions.mute);
 
     // ---- campaign screens (v1.4) -------------------------------------------
-    tap($('btn-continue'), actions.nextLevel);
+    tap($('btn-continue'), () => {
+      const keys = ui.levelClearSelection();
+      if (keys) actions.confirmKeep(keys);
+    });
+    if (els.lcGrid) {
+      els.lcGrid.addEventListener('click', (ev) => {
+        const card = ev.target.closest('[data-keep]');
+        if (!card) return;
+        const key = card.dataset.keep;
+        if (lcSelection.has(key)) lcSelection.delete(key);
+        else if (lcSelection.size < lcNeed) lcSelection.add(key);
+        else { card.classList.remove('deny'); void card.offsetWidth; card.classList.add('deny'); }
+        audio.click();
+        browseKeep(key);
+        paintKeepGrid();
+      });
+      els.lcGrid.addEventListener('mouseover', (ev) => {
+        const card = ev.target.closest('[data-keep]');
+        if (card && card.dataset.keep !== lcBrowse) browseKeep(card.dataset.keep);
+      });
+    }
     tap($('btn-slots-back'), actions.backToTitle);
     tap($('btn-newgame-back'), actions.backToSlots);
 
@@ -615,6 +672,7 @@ export const ui = {
       el.classList.toggle('hidden', name !== state);
     }
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
+    if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state === null && !steerHintShown) {
       steerHintShown = true;
@@ -691,16 +749,43 @@ export const ui = {
     }).join('');
   },
 
-  // v1.4: between-level interstitial.
+  // v1.5: the KEEP screen — pick exactly `need` upgrades to carry forward.
   showLevelClear(game, info) {
     if (!els || !els.lcHeading) return;
     els.lcHeading.textContent = `LEVEL ${info.levelIndex + 1} CLEAR`;
-    els.lcSub.textContent = `${info.name} secured · next: ${info.next}`;
+    els.lcSub.textContent = `${info.name} secured \u00b7 next: ${info.next}`;
     els.lcStats.innerHTML = [
       ['SCORE', game.score],
       ['KILLS', game.kills],
     ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${k}</span></div>`).join('');
-    els.lcBuild.innerHTML = buildChips(game.player);
+
+    // Owned positive tracks only (rusted plating resets for free — no card).
+    lcOwned = ownedTracks(game.player).filter((o) => o.lv > 0);
+    lcNeed = Math.min(2, lcOwned.length);
+    lcSelection = new Set(lcNeed < 2 ? lcOwned.map((o) => o.key) : []);
+    if (lcOwned.length === 2) lcSelection = new Set(lcOwned.map((o) => o.key));
+
+    els.lcNote.innerHTML = lcOwned.length > 2
+      ? `CHOOSE <b>2</b> UPGRADES TO KEEP \u2014 THE REST IS SCRAPPED`
+      : lcOwned.length
+        ? 'FEWER THAN THREE UPGRADES \u2014 EVERYTHING SURVIVES THE CROSSING'
+        : 'NO UPGRADES TO CARRY \u2014 FRESH BOILER AHEAD';
+
+    els.lcGrid.innerHTML = lcOwned.map(({ key, lv }) => {
+      const def = TRACKS[key];
+      const icon = chipIcon(def.icon, lv, 20);
+      return `<button class="keep-card" data-keep="${key}" type="button">
+        ${icon}<em>${esc(def.name)}</em>${pipsHTML(lv)}</button>`;
+    }).join('');
+
+    if (lcOwned.length) browseKeep((lcOwned[0] || {}).key);
+    else { stopKeepPreview(); els.lcDname.textContent = ''; els.lcDblurb.textContent = ''; }
+    paintKeepGrid();
+  },
+
+  // Selection when complete, else null (main.js gates Space/continue on this).
+  levelClearSelection() {
+    return lcSelection.size === lcNeed ? [...lcSelection] : null;
   },
 
   showEnd(game, victory, extra = {}) {

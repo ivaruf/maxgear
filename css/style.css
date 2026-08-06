@@ -519,6 +519,91 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 .tagline { font-family: var(--font-serif); opacity: 0.78; font-style: italic; font-size: 13.5px; color: #e6d6b4; }
 .hint { font-size: 12px; opacity: 0.55; line-height: 1.5; color: #ddcfb4; }
 
+/* ---- v1.5 level-clear KEEP screen ---- */
+.lc-card { width: min(96vw, 720px); }
+.keep-note { font-size: 13px; letter-spacing: 1px; opacity: 0.85; }
+.keep-note b { color: var(--charge); }
+#lc-pick {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 14px;
+  width: 100%;
+  align-items: start;
+  text-align: left;
+}
+#lc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.keep-card {
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 10px 6px 8px;
+  background: var(--plate);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.08s, border-color 0.15s, box-shadow 0.2s;
+}
+.keep-card em {
+  font-style: normal; font-size: 10px; font-weight: 800;
+  letter-spacing: 0.6px; text-align: center;
+}
+.keep-card .chip-ico { width: 22px; height: 22px; }
+.keep-card:hover { transform: translateY(-2px); border-color: var(--rim-hot); }
+.keep-card.browse { border-color: rgba(53, 224, 255, 0.55); }
+.keep-card.keep {
+  border-color: var(--charge);
+  box-shadow: 0 0 0 1px var(--charge), 0 0 16px rgba(255, 209, 102, 0.55),
+              inset 0 0 10px rgba(255, 209, 102, 0.12);
+  animation: keepGlow 1.4s ease-in-out infinite;
+}
+@keyframes keepGlow {
+  0%, 100% { box-shadow: 0 0 0 1px var(--charge), 0 0 12px rgba(255, 209, 102, 0.4), inset 0 0 8px rgba(255, 209, 102, 0.1); }
+  50% { box-shadow: 0 0 0 1px var(--charge), 0 0 22px rgba(255, 209, 102, 0.75), inset 0 0 12px rgba(255, 209, 102, 0.18); }
+}
+.keep-card.deny { animation: denyShake 0.3s; }
+@keyframes denyShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+#lc-detail {
+  display: flex; flex-direction: column; gap: 8px;
+  background: rgba(12, 9, 6, 0.55);
+  border: 1px solid var(--rim);
+  border-radius: 8px;
+  padding: 10px;
+}
+#lc-preview {
+  width: 100%; height: 132px; display: block;
+  background: #14100b; border-radius: 6px;
+  border: 1px solid rgba(201, 151, 59, 0.3);
+}
+#lc-detail h3 {
+  font-family: var(--font-display);
+  font-size: 14px; letter-spacing: 1.5px; color: #ffe9bd;
+}
+#lc-detail p { font-size: 12px; line-height: 1.5; opacity: 0.85; }
+.big-btn:disabled {
+  opacity: 0.35; cursor: not-allowed; transform: none !important;
+  box-shadow: none; animation: none;
+}
+@media (max-width: 640px) {
+  #lc-pick { grid-template-columns: 1fr; }
+  #lc-grid { max-height: 26vh; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+  #lc-preview { height: 110px; }
+  .lc-card { padding: 14px 10px; }
+}
+@media (max-height: 700px) {
+  #lc-grid { max-height: 30vh; }
+  .end-card.lc-card h2 { font-size: 26px; }
+}
+
 /* ---- v1.4 campaign cards: save slots + difficulty picks ---- */
 #slot-list, #diff-list {
   display: flex; flex-direction: column; gap: 12px;

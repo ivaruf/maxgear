@@ -401,6 +401,12 @@ function rollBlock(z, pool, heat) {
 // One gate row's slot defs by position in the level.
 function gateDefs(def, i, rows) {
   const last = rows - 1;
+  // Row 0 of EVERY level guarantees an offense option: a run that never gets
+  // offered damage in its opening stretch dies to the late ramp through no
+  // fault of its own (QA: 1-in-3 blind-bot deaths before this rule).
+  if (i === 0) {
+    return [['damage', 'fireRate', 'multishot', OWN], [NEW, 'squad']];
+  }
   const badRow = def.id >= 2 && i === Math.floor(rows / 2);
   if (badRow) {
     const bad = { key: chance(0.5) ? 'rust' : 'breach', levels: def.id >= 3 ? -2 : -1 };

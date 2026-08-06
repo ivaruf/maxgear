@@ -138,6 +138,21 @@ function resumeGame(slot, save) {
   startLevel(Math.min(save.levelIndex, LEVELS.length - 1), save.tracks);
 }
 
+// v1.5 KEEP-2: the balance valve. Every non-kept track resets to LV0 (rusted
+// plating resets too — for free), THEN we autosave and roll into the next level.
+function confirmKeep(keys) {
+  if (game.state !== 'levelclear' || !game.campaign) return;
+  const keep = new Set(keys || []);
+  const p = game.player;
+  for (const key of Object.keys(p.tracks)) {
+    if (!keep.has(key)) delete p.tracks[key];
+  }
+  recomputeStats(p);
+  const c = game.campaign;
+  writeSlot(c.slot, makeSave(game, c.levelIndex + 1));
+  startLevel(c.levelIndex + 1);
+}
+
 function restartLevel() {
   const c = game.campaign;
   if (!c) return;
@@ -186,7 +201,10 @@ function step(dt) {
       const end = game.levelDef && game.levelDef.end === 'foreman' && ENEMY_TYPES.foreman
         ? 'foreman' : 'boss';
       const diffMul = (game.difficulty ? game.difficulty.bossSec : 24) / 24;
-      const target = bossTargetHp(game.player) * diffMul * (end === 'foreman' ? 0.55 : 1);
+      // Foremen are shorter fights than the ironclad; the LEVEL 1 foreman is
+      // gentler still — it's the campaign's on-ramp, not a wall.
+      const endMul = end === 'foreman' ? (game.levelDef && game.levelDef.id === 1 ? 0.4 : 0.55) : 1;
+      const target = bossTargetHp(game.player) * diffMul * endMul;
       spawnEnemy(game, end, 0, game.player.z + 700, { hpScale: target / ENEMY_TYPES[end].hp });
     }
   }
@@ -219,8 +237,7 @@ function step(dt) {
         writeSlot(c.slot, makeSave(game, c.levelIndex, true));
         setState('victory');
       } else {
-        writeSlot(c.slot, makeSave(game, c.levelIndex + 1));
-        setState('levelclear');
+        setState('levelclear'); // autosave happens in confirmKeep (after the pick)
       }
     }
   }
@@ -251,7 +268,10 @@ function handleInput() {
       else if (restartPress) restartLevel();
       break;
     case 'levelclear':
-      if (startPress) { audio.click(); startLevel(game.campaign.levelIndex + 1); }
+      if (startPress) {
+        const keys = ui.levelClearSelection();
+        if (keys) { audio.click(); confirmKeep(keys); }
+      }
       break;
     case 'defeat':
       if (startPress || restartPress) { audio.unlock(); restartLevel(); }
@@ -310,7 +330,7 @@ ui.init(game, {
   },
   deleteSlot: (i) => { clearSlot(i); ui.showSlots(loadSlots()); },
   pickDifficulty: (key) => { audio.unlock(); newGame(pendingSlot, key); },
-  nextLevel: () => { if (game.state === 'levelclear') startLevel(game.campaign.levelIndex + 1); },
+  confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
   backToTitle: () => setState('title'),
 });

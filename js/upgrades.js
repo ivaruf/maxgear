@@ -199,6 +199,30 @@ const TRACK_TIERS = {
 };
 for (const k in TRACKS) TRACKS[k].tier = TRACK_TIERS[k] ?? 1;
 
+// One-line pane descriptions (v1.5 level-clear keep screen). Mechanics first,
+// flavor second — the player reads these while deciding what survives.
+const TRACK_BLURBS = {
+  damage: 'Heavier shells. Every bullet hits harder — the backbone of any build.',
+  fireRate: 'Stoke the boiler: shorter time between volleys. Multiplies everything else.',
+  multishot: 'Extra barrels fire side-by-side. The volley auto-tightens as it widens.',
+  homing: 'Gyroscopic shells curve toward the nearest machine. Stops missing for you.',
+  lance: 'Shots become needles that punch THROUGH enemies. LV5 ignores shield plates.',
+  blast: 'Shells detonate on impact, splashing nearby machines. Bigger boom per level.',
+  arc: 'Hits discharge chain lightning that jumps between machines. Loves crowds.',
+  burn: 'Shots ignite machines: damage over time. LV4 spreads fire on death.',
+  frost: 'Cryo rounds slow enemy gears — movement AND attacks. LV5 cancels charger dashes.',
+  crit: 'A chance for golden critical hits at a rising multiplier (up to 3x).',
+  saw: 'Brass flywheels orbit your hull, shredding what they touch. LV3+ blocks enemy shots.',
+  broadside: 'Auxiliary guns fire to the sides and rear. LV5 is a full ring of iron.',
+  shrapnel: 'Machines burst into shrapnel on death, wounding their neighbours.',
+  squad: 'Escort ships orbit you and fire your full volley. Mortal — they soak hits for you.',
+  plating: 'Riveted armour: more hull AND a damage reduction from LV3.',
+  aegis: 'A recharging aether shield absorbs a hit outright. LV3+ shocks nearby machines.',
+  siphon: 'Condense the steam of the fallen: kills heal you, capped per second.',
+  thrust: 'Bigger engines. Strafe faster, dodge what others must tank.',
+};
+for (const k in TRACKS) TRACKS[k].blurb = TRACK_BLURBS[k] || '';
+
 // Build order. No two builds write the same field, so this only fixes
 // determinism (and keeps HUD/end-screen listings stable).
 export const TRACK_ORDER = [

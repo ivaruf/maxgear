@@ -82,6 +82,15 @@ projectile appearance from js/bulletStyle.js (style recomputed on weapon-stat ch
 double-buffered; cyan-anchored hue clamp ±40° is LOAD-BEARING — player fire must never
 read as enemy/gate colors).
 
+## Keep-2 (v1.5)
+Level clear -> ui.showLevelClear renders a KEEP grid (positive tracks only; rusted plating
+resets for free). Player selects exactly min(2, owned); main.confirmKeep(keys) deletes all
+other tracks, recomputes, THEN autosaves and starts the next level. Detail pane =
+TRACKS[key].blurb + js/previews.js startPreview(canvas, key, level) — animated per-track
+vignette using the real bullet style (bulletStyle.js) and stats at that level. Preview rAF
+loop is stopped on any screen change (ui.showScreen guards). Space confirms only when
+ui.levelClearSelection() is non-null. Level-1 foreman fights at 0.4x (on-ramp), later 0.55x.
+
 ## Campaign (v1.4)
 js/campaign.js: LEVELS (4 defs: length/tier/enemyPool/gateRows/end) + DIFFICULTIES
 (enemyHp/enemyDmg/density/bossSec). js/saves.js: 3 localStorage slots, autosaved at level

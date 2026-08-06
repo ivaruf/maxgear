@@ -83,16 +83,21 @@
   </div>
 
   <div id="screen-levelclear" class="screen hidden">
-    <div class="end-card party">
+    <div class="end-card party lc-card">
       <h2 class="good" id="lc-heading">LEVEL CLEAR</h2>
       <p id="lc-sub" class="tagline"></p>
       <div id="lc-stats" class="end-stats"></div>
-      <div class="build">
-        <span class="build-cap">CURRENT BUILD</span>
-        <div id="lc-build" class="build-row"></div>
+      <p id="lc-note" class="keep-note">CHOOSE <b>2</b> UPGRADES TO KEEP — THE REST IS SCRAPPED</p>
+      <div id="lc-pick">
+        <div id="lc-grid"></div>
+        <div id="lc-detail">
+          <canvas id="lc-preview" aria-hidden="true"></canvas>
+          <h3 id="lc-dname"></h3>
+          <p id="lc-dblurb"></p>
+        </div>
       </div>
-      <p class="hint" id="lc-saved">PROGRESS SAVED ✓</p>
-      <button class="big-btn pulse" id="btn-continue" type="button">CONTINUE →</button>
+      <p class="hint" id="lc-saved">YOUR CHOICE IS SAVED WITH YOUR PROGRESS</p>
+      <button class="big-btn" id="btn-continue" type="button" disabled>CONTINUE →</button>
     </div>
   </div>
 

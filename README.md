@@ -51,6 +51,11 @@ The Foundry and The Shipyards onward — and introduce new machines: the mortar-
 **Bomber** (dodge the dashed ring!), the enemy-healing **Welder** (shoot it first), and
 bolted-down **Turrets** that survive anything ramming them.
 
+**Keep-2 (v1.5):** clearing a level opens the KEEP screen — a grid of everything you own,
+each with a description and a **live animated demo** of the effect. Pick exactly **two**
+upgrades to carry forward (glowing border); the rest is scrapped. It's the campaign's
+balance valve: builds can spike within a level but must be re-earned across them.
+
 **3 save slots per device** (offline, localStorage) — progress autosaves at every level
 clear. Pick **EASY / MEDIUM / HARD** when starting a slot: difficulty scales enemy
 toughness, damage, spawn density and boss endurance. `R` restarts the current level with

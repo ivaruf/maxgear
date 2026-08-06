@@ -8,7 +8,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.4.0'; // campaign: 4 levels, saves, difficulties, new machines
+const VERSION = 'v1.5.0'; // keep-2 level clears + animated upgrade previews
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -31,6 +31,7 @@ const ASSETS = [
   './js/obstacles.js',
   './js/pickups.js',
   './js/player.js',
+  './js/previews.js',
   './js/projectiles.js',
   './js/render.js',
   './js/saves.js',
