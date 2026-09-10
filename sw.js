@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.6.0'; // rendered audio: Sonic Pi effects, the maxgear theme, sound board
+const VERSION = 'v1.6.1'; // a way back to the arcade when the arcade is what framed us
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
