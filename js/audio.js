@@ -214,6 +214,7 @@ function startMusic() {
 // at extreme fire rates the shot tick is dropped outright, and a blast landing
 // on top of another one loses its tail so chain reactions never pile into mush.
 let lastShoot = 0;
+let shootAlt = false;   // flips per shot: the two halves of "pew-pew"
 let lastCharge = 0;
 let lastHit = 0;
 let lastDie = 0;
@@ -272,14 +273,19 @@ export const audio = {
     const gap = t - lastShoot;
     if (gap < 0.045) return;               // hard throttle at extreme fire rates
     lastShoot = t;
-    // Overlapping shots sum, so the level has to come down as the rate climbs
-    // — but as a ramp, not a cliff. The synthesised version cut to 0.45 the
-    // moment the gap fell under 130 ms, which is exactly where fireRate LV4
-    // lands: upgrading the gun made it 7 dB quieter, and a shot with real body
-    // behind it cannot afford that. Base fire is a 320 ms gap against a 154 ms
-    // sound, so nothing overlaps until the player has earned it.
-    const soft = gap >= 0.22 ? 1 : Math.max(0.6, gap / 0.22);
-    play('shoot', 0.95 * soft, rnd(0.92, 1.1));
+    // Overlapping shots sum, so the level comes down as the rate climbs — as a
+    // ramp, not a cliff. The synthesised version cut to 0.45 the moment the gap
+    // fell under 130 ms, which is exactly where fireRate LV4 lands: upgrading
+    // the gun made it 7 dB quieter, a downgrade you can hear. The ramp is
+    // gentle because the pew earns it — 110 ms with nothing below 150 Hz barely
+    // overlaps even at fourteen shots a second, and has no bass to pile up.
+    const soft = gap >= 0.15 ? 1 : Math.max(0.7, gap / 0.15);
+    // pew-PEW: successive shots sit a whole tone apart, so a fast stream reads
+    // as a rhythm rather than one sample stuttering. The jitter on top is under
+    // a semitone — enough that the alternation never sounds mechanical, small
+    // enough that the alternation is still what you hear.
+    shootAlt = !shootAlt;
+    play('shoot', 0.95 * soft, (shootAlt ? 1.06 : 0.944) * rnd(0.985, 1.015));
   },
 
   hit() {

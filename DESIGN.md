@@ -142,6 +142,12 @@ synthesis for a new sound, add a piece and re-run the build.
 - Call sites are unchanged and stay unchanged: same thirteen methods, same throttles. Variety
   now comes from `playbackRate` and clustering now pulls gain, because a sample cannot drop
   its own partials.
+- `shoot` is the load-bearing one: it fires once per VOLLEY (player.js), so 3.1/s at base up
+  to 14.3/s at fireRate LV5 under overdrive. Successive shots alternate a whole tone apart —
+  that alternation is what makes fast fire read as pew-pew instead of a stutter, so nothing
+  may start dropping shots at rate (the 45 ms throttle sits clear of the 70 ms top rate on
+  purpose). The piece is 110 ms with nothing below 150 Hz for the same reason: bass is what
+  sums into mud when a sound repeats. Check both if you retune it.
 - `setBossMode` ducks: normal play runs the music at 80% of the slider, the end fight at 100%.
   One fixed track has no intensity layer, so level is the only honest lever.
 - The board is INLINE in the title and pause menus, not a screen — there is no 'settings'

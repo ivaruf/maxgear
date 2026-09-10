@@ -187,7 +187,9 @@ the road.
 Every sound is a rendered file (v1.6 — the game synthesized all of it in WebAudio before).
 
 - **Effects**: thirteen Sonic Pi pieces in `tools/audio/*.rb` — iron clanks, steam vents,
-  brass bells, ruptured boilers. 168 KB for the whole set, precached with the game.
+  brass bells, ruptured boilers, and a pew for the aether cannon. 168 KB for the whole set,
+  precached with the game. The shot alternates a whole tone per volley, so holding down a
+  fireRate build reads as pew-pew rather than one sample stuttering.
 - **Music**: the MAXGEAR theme, one three-minute bed looped whole. The master is Opus in an
   MP4 (which Safari cannot decode), so what ships is an AAC transcode; 3 MB, deliberately
   *not* precached, so a version bump never stalls behind it.
