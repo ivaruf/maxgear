@@ -272,7 +272,13 @@ export const audio = {
     const gap = t - lastShoot;
     if (gap < 0.045) return;               // hard throttle at extreme fire rates
     lastShoot = t;
-    const soft = gap < 0.13 ? 0.45 : 1;    // softer tick while spraying
+    // Overlapping shots sum, so the level has to come down as the rate climbs
+    // — but as a ramp, not a cliff. The synthesised version cut to 0.45 the
+    // moment the gap fell under 130 ms, which is exactly where fireRate LV4
+    // lands: upgrading the gun made it 7 dB quieter, and a shot with real body
+    // behind it cannot afford that. Base fire is a 320 ms gap against a 154 ms
+    // sound, so nothing overlaps until the player has earned it.
+    const soft = gap >= 0.22 ? 1 : Math.max(0.6, gap / 0.22);
     play('shoot', 0.95 * soft, rnd(0.92, 1.1));
   },
 

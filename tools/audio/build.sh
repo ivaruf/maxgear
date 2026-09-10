@@ -40,7 +40,7 @@ WAV="${TMPDIR:-/tmp}/maxgear-audio-wav"
 OUT=assets/audio
 
 PIECES=(
-  shoot=1.2
+  shoot=1.5
   hit=1.5
   click=1.2
   gate-charge=1.2
@@ -63,11 +63,18 @@ SONIC_PI_PIECES=tools/audio "$SP_RUBY" "$HUB_TOOLS/render.rb" "$WAV" "${PIECES[@
 echo "== effects: trim + one shared gain + mono AAC =="
 node "$HUB_TOOLS/encode-oneshots.mjs" "$WAV" "$OUT"
 
-echo "== music: Opus master -> AAC =="
-ffmpeg -hide_banner -nostdin -y -i tools/audio/maxgear-theme.m4a \
-  -af "atrim=start=0.16:end=185.65,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.05" \
-  -vn -ac 2 -ar 48000 -c:a aac -b:a 128k -movflags +faststart \
-  "$OUT/music-theme.m4a"
+# Only when the master is newer than what we shipped. Tuning one effect is a
+# normal afternoon here, and rewriting a 2.9 MB binary into git history on
+# every pass of that is not.
+if [ ! -f "$OUT/music-theme.m4a" ] || [ tools/audio/maxgear-theme.m4a -nt "$OUT/music-theme.m4a" ]; then
+  echo "== music: Opus master -> AAC =="
+  ffmpeg -hide_banner -nostdin -y -i tools/audio/maxgear-theme.m4a \
+    -af "atrim=start=0.16:end=185.65,asetpts=PTS-STARTPTS,afade=t=in:st=0:d=0.05" \
+    -vn -ac 2 -ar 48000 -c:a aac -b:a 128k -movflags +faststart \
+    "$OUT/music-theme.m4a"
+else
+  echo "== music: up to date (touch the master to force) =="
+fi
 
 echo
 ls -la "$OUT"

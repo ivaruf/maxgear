@@ -858,49 +858,58 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   .update-btn { animation: none; }
 }
 
-/* ---- v1.6 sound board: two pressure dials cut into a brass plate ----
+/* ---- v1.6 sound board: two pressure dials on a brass plate ----
+   It sits INLINE in the title and pause menus (ui.showScreen moves the one
+   node between the two slots), so it has to read as a piece of the machine
+   bolted into the menu rather than a settings page — hence the engraved
+   caption, and hence a layout tight enough to live under START RUN.
    The sliders are real <input type="range">, restyled from the shell out: an
-   OS slider on this screen would be the one control in MAXGEAR that belongs
-   to no machine. The track is the same recessed channel as the HP bar, filled
-   with brass up to the setting (--fill, written by ui.js), and the thumb is
-   the same cast-brass pushbutton as the HUD's mute and pause. */
+   OS slider here would be the one control in MAXGEAR that belongs to no
+   machine. The channel is the same recess as the HP bar, filled with brass up
+   to the setting (--fill, written by ui.js), and the thumb is the same
+   cast-brass pushbutton as the HUD's mute and pause. */
+.board-slot { display: flex; justify-content: center; width: 100%; }
 #sound-board {
-  display: flex; flex-direction: column; gap: 18px;
-  width: min(92vw, 460px);
-  padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 11px;
+  width: min(92vw, 380px);
+  padding: 12px 16px 14px;
   text-align: left;
   background: var(--plate);
   border: 1px solid var(--rim);
   border-radius: 10px;
   box-shadow: var(--sheen), 0 4px 16px rgba(0, 0, 0, 0.5);
 }
-.dial-row { display: flex; flex-direction: column; gap: 7px; }
-.dial-label {
-  display: flex; flex-direction: column; gap: 3px;
+.board-cap {
   font-family: var(--font-display);
-  font-size: 14px; font-weight: 700; letter-spacing: 1.6px;
+  font-size: 10.5px; letter-spacing: 2.4px;
+  color: var(--brass); opacity: 0.9;
+  padding-bottom: 3px;
+  border-bottom: 1px solid rgba(201, 151, 59, 0.22);
+}
+.dial-row { display: flex; flex-direction: column; gap: 1px; }
+.dial-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.dial-label {
+  font-family: var(--font-display);
+  font-size: 13px; font-weight: 700; letter-spacing: 1.6px;
   color: #ffe9bd;
 }
-.dial-sub {
-  font-family: var(--font-serif); font-style: italic;
-  font-size: 11.5px; letter-spacing: 0; opacity: 0.62; color: #e6d6b4;
-}
-.dial { display: flex; align-items: center; gap: 14px; }
 .dial-val {
   font-family: var(--font-display);
-  font-size: 13px; letter-spacing: 1.2px;
+  font-size: 12px; letter-spacing: 1.2px;
   color: var(--brass-lt);
-  min-width: 46px; text-align: right;
   font-variant-numeric: tabular-nums;
 }
-/* MASTER CUT-OFF sits on one line: label left, brass lever right. */
+/* MASTER sits on one line: label left, brass lever right. */
 .board-master {
-  flex-direction: row; align-items: center; justify-content: space-between;
+  display: flex; flex-direction: row; align-items: center; justify-content: space-between;
   gap: 12px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(201, 151, 59, 0.28);
+  padding-top: 9px;
+  border-top: 1px solid rgba(201, 151, 59, 0.22);
 }
-.cutoff-btn { min-width: 168px; text-align: center; }
+.cutoff-btn {
+  min-height: 36px; min-width: 148px;
+  padding: 7px 14px; font-size: 12px; text-align: center;
+}
 /* pressed = muted: the lever is thrown and the plate reads cold */
 .cutoff-btn[aria-pressed="true"] {
   color: #eeb9a8;
@@ -956,9 +965,17 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 #sound-board input[type="range"]:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 3px rgba(53, 224, 255, 0.6), 0 2px 7px rgba(0, 0, 0, 0.6);
 }
+/* Short viewports are the real constraint, not narrow ones: the board shares
+   the title screen with the logo, START RUN and the armoury. Tighten it rather
+   than let the screen start scrolling. */
 @media (max-width: 480px) {
-  #sound-board { padding: 14px; gap: 15px; }
-  .cutoff-btn { min-width: 132px; padding: 9px 12px; }
+  #sound-board { padding: 11px 13px 12px; }
+  .cutoff-btn { min-width: 124px; padding: 7px 10px; }
+}
+@media (max-height: 640px) {
+  #sound-board { gap: 8px; padding: 9px 13px 10px; }
+  .board-cap { display: none; }   /* the labels already say what this is */
+  #sound-board input[type="range"] { height: 30px; }
 }
 
 /* ---- End screens: brass-framed cards ---- */

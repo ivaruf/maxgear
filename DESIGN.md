@@ -144,6 +144,13 @@ synthesis for a new sound, add a piece and re-run the build.
   its own partials.
 - `setBossMode` ducks: normal play runs the music at 80% of the slider, the end fight at 100%.
   One fixed track has no intensity layer, so level is the only honest lever.
+- The board is INLINE in the title and pause menus, not a screen — there is no 'settings'
+  state. `#sound-board` is a single node that `ui.showScreen` moves between `#title-board`
+  and `#pause-board`, which is what stops the two menus drifting apart and keeps the
+  listeners attached once. Two consequences worth knowing before you touch it: clicks inside
+  it must keep stopping propagation (the title screen starts a run on a click anywhere), and
+  its controls call `audio.unlock()` themselves, because on the title screen the board may be
+  the player's first touch of the game.
 - Anything unloaded is SKIPPED, never queued — a clank a second late is worse than no clank.
 Boss HP is DPS-scaled at spawn in main.js (~30s fight for any build) with an overheat-decay failsafe after 75s.
 

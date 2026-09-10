@@ -62,8 +62,39 @@
 
     <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
     <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
-    <button class="small-btn" id="btn-sound" type="button">🎛 &nbsp;THE SOUND BOARD</button>
     <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;UPDATE READY</button>
+
+    <!-- The sound board lives inline in the menus, not on a screen of its own.
+         There is ONE of it: ui.showScreen moves this node between the slot here
+         and the one on the pause screen, so the two menus can never drift out
+         of sync and the listeners only ever get attached once. -->
+    <div id="title-board" class="board-slot">
+      <div id="sound-board">
+        <span class="board-cap">SOUND BOARD</span>
+
+        <div class="dial-row">
+          <div class="dial-head">
+            <label class="dial-label" for="vol-music">MUSIC</label>
+            <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
+          </div>
+          <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
+        </div>
+
+        <div class="dial-row">
+          <div class="dial-head">
+            <label class="dial-label" for="vol-sfx">MACHINERY</label>
+            <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
+          </div>
+          <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
+        </div>
+
+        <div class="board-master">
+          <span class="dial-label">MASTER</span>
+          <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
+        </div>
+      </div>
+    </div>
+
     <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
     <span id="game-version" class="version-tag"></span>
   </div>
@@ -71,43 +102,9 @@
   <div id="screen-pause" class="screen hidden">
     <h2>PAUSED</h2>
     <button class="big-btn" id="btn-resume" type="button">RESUME</button>
-    <button class="small-btn" id="btn-pause-sound" type="button">🎛 &nbsp;THE SOUND BOARD</button>
+    <!-- the sound board moves in here while the game is paused -->
+    <div id="pause-board" class="board-slot"></div>
     <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
-  </div>
-
-  <!-- Sound board: reachable from the title and from the pause screen, and it
-       returns to whichever opened it (main.js remembers). Two pressure dials
-       for the two buses plus the master cut-off. -->
-  <div id="screen-settings" class="screen hidden">
-    <h2>SOUND BOARD</h2>
-    <p class="tagline">Set the pressure on each line</p>
-    <div id="sound-board">
-      <div class="dial-row">
-        <label class="dial-label" for="vol-music">MUSIC
-          <span class="dial-sub">the theme, running under the whole shift</span>
-        </label>
-        <div class="dial">
-          <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
-          <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
-        </div>
-      </div>
-
-      <div class="dial-row">
-        <label class="dial-label" for="vol-sfx">MACHINERY
-          <span class="dial-sub">guns, boilers, bells and everything that breaks</span>
-        </label>
-        <div class="dial">
-          <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
-          <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
-        </div>
-      </div>
-
-      <div class="dial-row board-master">
-        <span class="dial-label">MASTER CUT-OFF</span>
-        <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
-      </div>
-    </div>
-    <button class="small-btn" id="btn-settings-back" type="button">BACK</button>
   </div>
 
   <div id="screen-powers" class="screen hidden">

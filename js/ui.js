@@ -582,7 +582,6 @@ export const ui = {
         slots: $('screen-slots'),
         newgame: $('screen-newgame'),
         levelclear: $('screen-levelclear'),
-        settings: $('screen-settings'),
       },
       slotList: $('slot-list'),
       diffList: $('diff-list'),
@@ -601,6 +600,8 @@ export const ui = {
       victoryBuild: $('victory-build'),
       muteBtn: $('mute-btn'),
       btnUpdate: $('btn-update'), versionTag: $('game-version'),
+      soundBoard: $('sound-board'),
+      titleBoard: $('title-board'), pauseBoard: $('pause-board'),
       volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
       volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
       btnCutoff: $('btn-cutoff'),
@@ -658,27 +659,32 @@ export const ui = {
     tap(els.muteBtn, actions.mute);
 
     // ---- v1.6 sound board -------------------------------------------------
-    // Reachable from the title and from pause; main.js remembers which and
-    // sends BACK there. Like btn-powers, the title button relies on its own
-    // handler running before the click bubbles to the title screen's
-    // start-anywhere listener: by then the state is 'settings', so start()'s
-    // own guard turns the bubbled call into a no-op.
-    tap($('btn-sound'), actions.showSettings);
-    tap($('btn-pause-sound'), actions.showSettings);
-    tap($('btn-settings-back'), actions.closeSettings);
-    tap(els.btnCutoff, actions.mute);
+    // It sits inline in the title and pause menus (showScreen moves the one
+    // node between them). LOAD-BEARING: the title screen starts a run on a
+    // click anywhere, so every click inside the board has to stop there —
+    // otherwise nudging a slider on the title screen launches the game.
+    if (els.soundBoard) {
+      els.soundBoard.addEventListener('click', (ev) => ev.stopPropagation());
+    }
+    tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
 
     // Sliders move on 'input' (every step, so the bus follows the thumb) and
     // audition on 'change' (once, when the player lets go) — an iron clank on
     // every step of a drag would be unbearable.
+    //
+    // Each one unlocks first. On the title screen the board may well be the
+    // player's FIRST touch of the game, and a volume control that does not
+    // make a sound while you set it is a volume control you cannot use.
     if (els.volMusic) {
       els.volMusic.addEventListener('input', () => {
+        audio.unlock();
         if (audio.setMusicVolume(els.volMusic.value / 100)) ui.setMuted(false);
         paintSoundBoard();
       });
     }
     if (els.volSfx) {
       els.volSfx.addEventListener('input', () => {
+        audio.unlock();
         if (audio.setSfxVolume(els.volSfx.value / 100)) ui.setMuted(false);
         paintSoundBoard();
       });
@@ -797,7 +803,14 @@ export const ui = {
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
     if (state !== 'powers') stopPowerPreview();
-    if (state === 'settings') paintSoundBoard();
+    // One board, two homes. Moving the single node is what keeps the title and
+    // the pause menu from drifting apart: there is only ever one set of
+    // controls, with one set of listeners, and it follows the open menu.
+    const boardHome = state === 'title' ? els.titleBoard : state === 'pause' ? els.pauseBoard : null;
+    if (boardHome && els.soundBoard) {
+      if (els.soundBoard.parentNode !== boardHome) boardHome.appendChild(els.soundBoard);
+      paintSoundBoard();
+    }
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state === null && !steerHintShown) {
       steerHintShown = true;
@@ -807,10 +820,7 @@ export const ui = {
         setTimeout(() => h.classList.add('hidden'), 4700); // matches the CSS timeline
       }
     }
-    // 'settings' is exempt along with 'pause': the board can be opened in the
-    // middle of an end fight, and dropping boss mode there would duck the
-    // music and hide the boss bar for as long as the player is setting levels.
-    if (state !== null && state !== 'pause' && state !== 'settings') {
+    if (state !== null && state !== 'pause') {
       clearToasts();
       audio.setBossMode(false);
       els.bossWrap.classList.add('hidden');
