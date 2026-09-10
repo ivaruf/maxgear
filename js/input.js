@@ -9,13 +9,22 @@ export function createInput(canvas) {
   let lastPointerX = 0;
 
   const press = (a) => presses.add(a);
+  const isControl = (el) => !!el && (el.tagName === 'BUTTON' || el.tagName === 'INPUT' || el.tagName === 'A');
 
   window.addEventListener('keydown', (e) => {
     if (e.repeat) return;
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA': keys.left = true; break;
       case 'ArrowRight': case 'KeyD': keys.right = true; break;
-      case 'Space': case 'Enter': press('start'); e.preventDefault(); break;
+      // v1.6: never take Space/Enter off a focused control. The menus are real
+      // buttons and real sliders, and preventDefault here suppresses the click
+      // a browser would otherwise synthesise — which silently made every
+      // screen mouse-only for anyone working the game from the keyboard.
+      case 'Space': case 'Enter':
+        if (isControl(e.target)) return;
+        press('start');
+        e.preventDefault();
+        break;
       case 'KeyR': press('restart'); break;
       case 'Escape': case 'KeyP': press('pause'); break;
       case 'KeyM': press('mute'); break;

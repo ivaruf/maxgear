@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.5.3'; // version tag + opt-in updates + escort half-strength volleys
+const VERSION = 'v1.6.0'; // rendered audio: Sonic Pi effects, the maxgear theme, sound board
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -43,7 +43,31 @@ const ASSETS = [
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',
+  // v1.6 effects: thirteen files, 168 KB for the set, so they precache with
+  // everything else and the first clank of a session is never late.
+  './assets/audio/shoot.m4a',
+  './assets/audio/hit.m4a',
+  './assets/audio/enemy-die.m4a',
+  './assets/audio/explode.m4a',
+  './assets/audio/hurt.m4a',
+  './assets/audio/pickup.m4a',
+  './assets/audio/gate-good.m4a',
+  './assets/audio/gate-bad.m4a',
+  './assets/audio/gate-charge.m4a',
+  './assets/audio/boss-roar.m4a',
+  './assets/audio/win.m4a',
+  './assets/audio/lose.m4a',
+  './assets/audio/click.m4a',
 ];
+
+// The music bed is deliberately NOT in ASSETS. It is 2.9 MB against 1.1 MB for
+// everything listed above put together, and install blocks on every entry in
+// that list, so precaching it would stall each version bump behind a download on
+// whatever connection the player happens to be on. The fetch handler below
+// caches it on first play instead, which costs one uncached launch of music
+// (the game runs fine silent, see js/audio.js) and buys an install that stays
+// as fast as it was in v1.5. It needs no special case: audio.js fetches the
+// track as a plain request, so the handler's own put() covers it.
 
 self.addEventListener('install', (event) => {
   // No skipWaiting() here: after precaching, the new worker stays WAITING

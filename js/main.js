@@ -30,7 +30,7 @@ const input = createInput(canvas);
 const view = createView(canvas);
 
 const game = {
-  state: 'title', // title | slots | newgame | playing | paused | levelclear | victory | defeat
+  state: 'title', // title | slots | newgame | settings | playing | paused | levelclear | victory | defeat
   time: 0,
   runSpeed: BASE_RUN_SPEED,
   score: 0,
@@ -57,6 +57,10 @@ const game = {
 };
 
 let pendingSlot = 0;  // slot chosen on the slots screen, awaiting difficulty
+// v1.6: the sound board is reachable from two places and goes BACK to whichever
+// one opened it. 'title' or 'paused' — never 'playing', so backing out of it
+// can never drop the player straight into a running level.
+let settingsFrom = 'title';
 
 function clearWorld() {
   game.enemies.length = 0;
@@ -260,6 +264,9 @@ function handleInput() {
     case 'powers':
       if (pausePress) { audio.click(); setState('title'); } // Esc backs out
       break;
+    case 'settings':
+      if (pausePress) { audio.click(); setState(settingsFrom); } // Esc backs out
+      break;
     case 'playing':
       if (pausePress) { audio.click(); setState('paused'); }
       else if (restartPress) restartLevel();
@@ -334,10 +341,24 @@ ui.init(game, {
   confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
   showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
+  // The board is the one screen worth reaching mid-run, so it opens from the
+  // title AND from pause. unlock() first: a player who came here to turn the
+  // music down before starting must still get an AudioContext out of the tap.
+  showSettings: () => {
+    if (game.state !== 'title' && game.state !== 'paused') return;
+    audio.unlock();
+    settingsFrom = game.state;
+    setState('settings');
+  },
+  closeSettings: () => { if (game.state === 'settings') setState(settingsFrom); },
   backToTitle: () => setState('title'),
   applyUpdate: () => { if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); },
 });
 ui.showScreen('title');
+// v1.6: mute and both levels are remembered across sessions now, so the HUD
+// button and the sound board have to be painted from the stored state at boot
+// rather than assuming a fresh, unmuted session.
+ui.setMuted(audio.isMuted());
 
 window.addEventListener('resize', () => resizeView(view));
 

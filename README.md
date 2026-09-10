@@ -7,8 +7,9 @@ auto-fire down a brass-and-iron steampunk highway, steer through upgrade gates, 
 firepower, mow down waves of clockwork machines, and take down the IRONCLAD at the end of a
 ~3-minute run — under a giant clock-face sun, drifting zeppelins, and flying gears.
 
-No frameworks, no build step, no assets, no network calls: vanilla JS ES modules + Canvas 2D,
-procedural graphics, and Web Audio synthesized sound.
+No frameworks, no build step, no network calls: vanilla JS ES modules + Canvas 2D and
+procedural graphics. The only shipped assets are audio — thirteen Sonic Pi effects and the
+MAXGEAR theme (see [Audio](#audio)).
 
 ## Run it
 
@@ -78,6 +79,7 @@ the build you entered it with.
 | Pause | `Esc` / `P` (or ⏸ button) | ⏸ button |
 | Restart level | `R` (any time) | tap after defeat |
 | Mute | `M` (or 🔊 button) | 🔊 button |
+| Music / effects levels | **THE SOUND BOARD**, from the title or the pause screen | same |
 
 **Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
 (LV1→LV5)** — crossing a gate grants levels; **shooting** a chargeable gate (pulsing ⌖) pumps
@@ -121,7 +123,9 @@ js/level.js js/obstacles.js      level director + timeline, 4 obstacle types
 js/icons.js                      colored upgrade glyphs + level pips (canvas + DOM bakes)
 js/bulletStyle.js                bespoke bullet visuals computed from your build
 js/effects.js                    particles, arcs, shake, flashes, damage numbers, boss intro
-js/ui.js js/audio.js             DOM HUD/screens, procedural SFX + generative music
+js/ui.js js/audio.js             DOM HUD/screens, sample playback + the two audio buses
+assets/audio/                    the shipped effects and music bed (13 + 1 .m4a)
+tools/audio/                     Sonic Pi sources, the theme master, and build.sh
 ```
 
 ## Enemies
@@ -178,6 +182,25 @@ Runs are randomized: enemy mixes and wave density shift per run, ambush waves st
 between set-pieces, and gates vary — sometimes narrower, sometimes THREE choices across
 the road.
 
+## Audio
+
+Every sound is a rendered file (v1.6 — the game synthesized all of it in WebAudio before).
+
+- **Effects**: thirteen Sonic Pi pieces in `tools/audio/*.rb` — iron clanks, steam vents,
+  brass bells, ruptured boilers. 168 KB for the whole set, precached with the game.
+- **Music**: the MAXGEAR theme, one three-minute bed looped whole. The master is Opus in an
+  MP4 (which Safari cannot decode), so what ships is an AAC transcode; 3 MB, deliberately
+  *not* precached, so a version bump never stalls behind it.
+- **Rebuild both**: `tools/audio/build.sh` from the game root. It needs Sonic Pi, ffmpeg and
+  a real audio device — the effects are recorded in realtime and are audible while it works.
+  The script's header explains the mix calibration; read it before changing a piece.
+- **Levels**: two buses, both remembered in `localStorage` under `maxgear.audio.v1` along
+  with mute. The player sets them on THE SOUND BOARD, reachable from the title screen and
+  from pause. The end fight raises the music by un-ducking it — with a single fixed track,
+  level is the only intensity lever there is.
+- A file that fails to load warns once to the console and plays nothing; the game never
+  waits on audio and never breaks without it.
+
 ## Testing performed
 
 - Automated Playwright suite in real Chrome: start → steer (keys + drag) → full run → boss →
@@ -198,7 +221,8 @@ the road.
 
 - Single level / single character; difficulty is not selectable.
 - No persistence (high scores reset on reload) and no meta-progression.
-- Music is a simple generative loop; it starts after the first interaction (autoplay policy).
+- Audio starts after the first interaction (browser autoplay policy). The music bed is one
+  three-minute track looped whole, so the end fight changes its level but not its material.
 - `hpScale` rubber-bands enemy toughness with distance and boss HP scales with your DPS —
   deliberately arcade-fair rather than simulationist.
 - Tested in Chromium and Firefox engines; Safari should work (webkit prefixes handled) but

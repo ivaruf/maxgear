@@ -124,7 +124,27 @@ lives IN crates, few open pickups remain (QA safety heals + pre-boss recovery).
 `fx.frostPuff(x,z)`, `fx.siphonThread(x1,z1,x2,z2)`, (muzzle takes optional trailing color),
 `fx.shake(mag,dur)`, `fx.flash(color,alpha,dur)`, `fx.update(dt)`, `fx.draw(ctx,view)` — world-space x/z.
 `audio.shoot/hit/explode/enemyDie/hurt/pickup/gateGood/gateBad/gateCharge/bossRoar/win/lose/click()`,
-`audio.toggleMute()`, `audio.setBossMode(bool)`.
+`audio.toggleMute()`, `audio.isMuted()`, `audio.setBossMode(bool)`, `audio.unlock()`.
+Sound-board API (ui.js only): `musicVolume()`, `sfxVolume()`, `setMusicVolume(v)`,
+`setSfxVolume(v)` — both 0..1, and both return true if the move cleared a mute.
+
+## Audio (v1.6 — RENDERED, not synthesised)
+Every sound is a file. Thirteen Sonic Pi pieces (`tools/audio/*.rb`) → `assets/audio/*.m4a`,
+plus the MAXGEAR theme as the music bed; `tools/audio/build.sh` rebuilds the lot. The
+WebAudio oscillator bank and the generative Am-F-C-G loop are DELETED — don't reintroduce
+synthesis for a new sound, add a piece and re-run the build.
+- Graph: `source → per-voice gain → sfxBus | musicBus → master → destination`. master is the
+  mute gate; the two buses are the player's sliders, persisted with mute under
+  `maxgear.audio.v1`.
+- The `with_fx :level, amp:` at the top of each piece is CALIBRATION against the encoder's
+  measured peaks (build.sh's header has the why), not a taste knob. The set spans ~15 dB:
+  `shoot` at the bottom, `boss-roar` on top.
+- Call sites are unchanged and stay unchanged: same thirteen methods, same throttles. Variety
+  now comes from `playbackRate` and clustering now pulls gain, because a sample cannot drop
+  its own partials.
+- `setBossMode` ducks: normal play runs the music at 80% of the slider, the end fight at 100%.
+  One fixed track has no intensity layer, so level is the only honest lever.
+- Anything unloaded is SKIPPED, never queued — a clank a second late is worse than no clank.
 Boss HP is DPS-scaled at spawn in main.js (~30s fight for any build) with an overheat-decay failsafe after 75s.
 
 ## Visual direction — STEAMPUNK (v1.1 re-theme)
@@ -164,6 +184,8 @@ js/gates.js js/pickups.js           — upgrade agent
 js/level.js js/obstacles.js         — level agent
 js/effects.js (+render.js visuals)  — fx agent
 js/ui.js js/audio.js (+style.css)   — ui/audio agent
+tools/audio/ assets/audio/          — ui/audio agent (the .rb pieces are content; nothing
+                                      writes assets/audio except tools/audio/build.sh)
 js/upgrades.js                      — upgrade agent (track tables, recompute, boss estimator)
 js/icons.js                         — visuals (palette glyph painters + bakes)
 js/bulletStyle.js                   — visuals (bespoke bullet styles + sprites)

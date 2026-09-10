@@ -537,6 +537,29 @@ function paintKeepGrid() {
   els.btnContinue.classList.toggle('pulse', ready);
 }
 
+// v1.6: pull the sound board's controls back into line with the audio module,
+// which owns the values and remembers them. Called when the screen opens and
+// after every move, so the fill, the readout and the lever never drift from
+// what is actually playing. --fill is what paints brass into the channel; see
+// the range rules in style.css.
+function paintSoundBoard() {
+  if (!els) return;
+  const dial = (input, out, value) => {
+    if (!input) return;
+    const pct = Math.round(value * 100);
+    if (+input.value !== pct) input.value = pct;
+    input.style.setProperty('--fill', `${pct}%`);
+    if (out) out.textContent = `${pct}%`;
+  };
+  dial(els.volMusic, els.volMusicVal, audio.musicVolume());
+  dial(els.volSfx, els.volSfxVal, audio.sfxVolume());
+  if (els.btnCutoff) {
+    const m = audio.isMuted();
+    els.btnCutoff.textContent = m ? '🔇  MUTED' : '🔊  SOUND ON';
+    els.btnCutoff.setAttribute('aria-pressed', m ? 'true' : 'false');
+  }
+}
+
 export const ui = {
   init(game, actions) {
     els = {
@@ -559,6 +582,7 @@ export const ui = {
         slots: $('screen-slots'),
         newgame: $('screen-newgame'),
         levelclear: $('screen-levelclear'),
+        settings: $('screen-settings'),
       },
       slotList: $('slot-list'),
       diffList: $('diff-list'),
@@ -577,6 +601,9 @@ export const ui = {
       victoryBuild: $('victory-build'),
       muteBtn: $('mute-btn'),
       btnUpdate: $('btn-update'), versionTag: $('game-version'),
+      volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
+      volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
+      btnCutoff: $('btn-cutoff'),
     };
 
     // --- legend nodes: 2 icon canvases + one text slab per span --------------
@@ -629,6 +656,34 @@ export const ui = {
     tap($('btn-quit'), actions.quit);
     tap($('pause-btn'), actions.pause);
     tap(els.muteBtn, actions.mute);
+
+    // ---- v1.6 sound board -------------------------------------------------
+    // Reachable from the title and from pause; main.js remembers which and
+    // sends BACK there. Like btn-powers, the title button relies on its own
+    // handler running before the click bubbles to the title screen's
+    // start-anywhere listener: by then the state is 'settings', so start()'s
+    // own guard turns the bubbled call into a no-op.
+    tap($('btn-sound'), actions.showSettings);
+    tap($('btn-pause-sound'), actions.showSettings);
+    tap($('btn-settings-back'), actions.closeSettings);
+    tap(els.btnCutoff, actions.mute);
+
+    // Sliders move on 'input' (every step, so the bus follows the thumb) and
+    // audition on 'change' (once, when the player lets go) — an iron clank on
+    // every step of a drag would be unbearable.
+    if (els.volMusic) {
+      els.volMusic.addEventListener('input', () => {
+        if (audio.setMusicVolume(els.volMusic.value / 100)) ui.setMuted(false);
+        paintSoundBoard();
+      });
+    }
+    if (els.volSfx) {
+      els.volSfx.addEventListener('input', () => {
+        if (audio.setSfxVolume(els.volSfx.value / 100)) ui.setMuted(false);
+        paintSoundBoard();
+      });
+      els.volSfx.addEventListener('change', () => audio.hit());
+    }
 
     // ---- campaign screens (v1.4) -------------------------------------------
     tap($('btn-continue'), () => {
@@ -742,6 +797,7 @@ export const ui = {
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
     if (state !== 'powers') stopPowerPreview();
+    if (state === 'settings') paintSoundBoard();
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state === null && !steerHintShown) {
       steerHintShown = true;
@@ -751,7 +807,10 @@ export const ui = {
         setTimeout(() => h.classList.add('hidden'), 4700); // matches the CSS timeline
       }
     }
-    if (state !== null && state !== 'pause') {
+    // 'settings' is exempt along with 'pause': the board can be opened in the
+    // middle of an end fight, and dropping boss mode there would duck the
+    // music and hide the boss bar for as long as the player is setting levels.
+    if (state !== null && state !== 'pause' && state !== 'settings') {
       clearToasts();
       audio.setBossMode(false);
       els.bossWrap.classList.add('hidden');
@@ -775,6 +834,7 @@ export const ui = {
   setMuted(m) {
     els.muteBtn.textContent = m ? '🔇' : '🔊';
     els.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
+    paintSoundBoard();   // the board's lever shows the same state as the HUD
   },
 
   // v1.5.2: the version that is actually serving this session (from the SW).
