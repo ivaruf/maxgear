@@ -658,6 +658,39 @@ export const ui = {
     tap($('pause-btn'), actions.pause);
     tap(els.muteBtn, actions.mute);
 
+    /* Leaving the GAME, as opposed to quitting to the title.
+     *
+     * Only wired when the arcade's exit.js is actually there: it is another
+     * repository's file and is allowed to be missing, and a quit button that
+     * cannot quit is worse than none. Its words are exit.js's answer too —
+     * inside the arcade this goes back to the floor, installed it closes the
+     * window, and in an ordinary tab nothing may close anything, so it must
+     * not pretend otherwise.
+     *
+     * NOT via `tap`: the title screen starts a run on a click anywhere, which
+     * is why the sound board stops its clicks too. Leaving the game must not
+     * launch one on the way out. */
+    const exit = window.ArcadeExit;
+    if (exit) {
+      const label = exit.verb({ arcade: '◂ BACK TO THE ARCADE', app: '✕ CLOSE', tab: '✕ CLOSE' });
+      for (const id of ['btn-exit-title', 'btn-exit-pause']) {
+        const button = $(id);
+        if (!button) continue;
+        button.textContent = label;
+        button.classList.remove('hidden');
+        button.addEventListener('click', (e) => {
+          e.stopPropagation();
+          audio.click();
+          exit.quit().then((how) => {
+            // Refused: the browser will not close a window it did not open.
+            if (how !== 'refused') return;
+            button.textContent = 'CLOSE THIS TAB YOURSELF';
+            button.disabled = true;
+          });
+        });
+      }
+    }
+
     // ---- v1.6 sound board -------------------------------------------------
     // It sits inline in the title and pause menus (showScreen moves the one
     // node between them). LOAD-BEARING: the title screen starts a run on a

@@ -834,6 +834,20 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 .small-btn:active { transform: scale(0.96); }
 
+/* Leaving the game, as opposed to quitting to the title. Brass with the plate
+   taken away: the quietest control on either menu, never in competition with
+   START or RESUME, and still unmistakably from the same workshop. */
+.exit-btn {
+  background: none;
+  border-color: transparent;
+  box-shadow: none;
+  color: rgba(236, 220, 182, 0.6);
+  font-size: 12px;
+}
+.exit-btn:not(:disabled):hover,
+.exit-btn:focus-visible { color: #ecdcb6; border-color: rgba(201, 151, 59, 0.42); }
+.exit-btn:disabled { color: rgba(236, 220, 182, 0.4); cursor: default; }
+
 /* ---- Title: version tag + opt-in update pill (v1.5.2) ---- */
 .version-tag {
   position: absolute;
