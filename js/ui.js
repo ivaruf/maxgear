@@ -92,6 +92,7 @@ let lcStop = null;       // running preview's stop()
 let pwBrowse = null;
 let pwLevel = 3;         // preview level, 1..5 (clickable pips)
 let pwStop = null;
+let previewResize = 0;   // debounce for restarting a preview after a resize
 let prevLevels = null;   // { key: level } as last RENDERED — drives the .bump pop
 
 function esc(v) {
@@ -646,6 +647,17 @@ export const ui = {
         prevLegend = '';
         prevStrip = '';
         prevLevels = null;
+        // A preview canvas keeps the pixel size it was started at, and turning
+        // a phone on its side changes its CSS size (style.css lays the armoury
+        // and the KEEP screen out differently in landscape) — the old bitmap
+        // would just be stretched into the new box. Restart whichever preview
+        // is showing, once the resize has settled rather than on every event.
+        clearTimeout(previewResize);
+        previewResize = setTimeout(() => {
+          const showing = (s) => s && !s.classList.contains('hidden');
+          if (showing(els.screens.powers) && pwBrowse) browsePower(pwBrowse, true);
+          if (showing(els.screens.levelclear) && lcBrowse) browseKeep(lcBrowse);
+        }, 120);
       });
     }
 

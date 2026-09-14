@@ -6,6 +6,14 @@ tutorial waves → escalating encounters with upgrade gates → boss → victory
 ## Tech
 - Vanilla JS ES modules, Canvas 2D, no build step, no dependencies.
 - Serve statically (`python3 -m http.server`). DOM overlay for HUD + menu screens, canvas for world.
+- Menus are laid out twice in `css/style.css`: as one centred column, and — under
+  `(orientation: landscape) and (max-height: 500px)`, i.e. a phone on its side — as CSS grids
+  placed by area over the same markup (menu beside sound board; armoury heading beside BACK
+  with grid and detail filling the rest and scrolling inside their own boxes; the KEEP card
+  dissolves `#lc-pick` with `display: contents` so its two halves become card cells). Add a
+  menu element and it needs a `grid-area` in that block or it lands in an auto row. The
+  armoury and KEEP previews are restarted from ui.js's resize listener because a preview
+  canvas keeps the pixel size it was started at.
 
 ## Coordinate system (WORLD SPACE — everyone works here)
 - `x`: horizontal, **road spans x ∈ [-200, +200]** (`ROAD_HALF = 200` in config.js).

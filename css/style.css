@@ -493,6 +493,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   z-index: 10;
   overflow-y: auto;
   overflow-x: hidden; /* lets the corner gears bleed off the edge without scroll */
+  /* A centred flex column that outgrows its box overflows at BOTH ends, and
+     the top end cannot be scrolled to — on a landscape phone that was the
+     logo, cut off with no way to reach it. `safe center` falls back to start
+     alignment when there is no room; a browser that does not know the
+     keyword drops this line and keeps the plain `center` above. */
+  justify-content: safe center;
 }
 
 .screen h1 {
@@ -539,6 +545,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   overflow-y: auto;
   padding: 2px;
 }
+/* The armoury has eighteen cards to the KEEP screen's handful, so on a desktop
+   it may stand taller. This has to sit HERE, above the phone rules below: it
+   used to live after them, and an id rule later in the file beats an id rule
+   in a media query, so every phone got a grid half the screen tall with the
+   detail pane and BACK pushed off the bottom. */
+#pw-grid { max-height: 52vh; }
 .keep-card {
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   padding: 10px 6px 8px;
@@ -606,7 +618,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 
 /* ---- v1.5.1 armoury (view-all-powers) extras ---- */
 #pw-pick { width: min(94vw, 760px); }
-#pw-grid { max-height: 52vh; }
 .keep-card .tier-tag {
   position: absolute; top: 4px; right: 6px;
   font-size: 9px; font-weight: 800; letter-spacing: 1px;
@@ -999,6 +1010,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   width: min(96vw, 540px);
   padding: 22px 18px;
   border-radius: 12px;
+  /* The card is the screen's only child, so auto margins centre it exactly
+     as the screen's justify-content does — and unlike that, they collapse to
+     zero when the card is taller than the screen, so it scrolls from the top
+     instead of losing its heading above the fold. Works in every browser,
+     which the `safe center` on .screen does not yet. */
+  margin: auto 0;
 }
 .end-card.party {
   background:
@@ -1202,6 +1219,161 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #upgrade-toast { top: 14%; }
   #boss-wrap { top: calc(var(--safe-t) + 60px); width: min(60vw, 420px); }
   #act-label { top: calc(var(--safe-t) + 36px); }
+}
+
+/* ================= Landscape phones: the menus turn sideways =================
+   A phone on its side is 300–430px tall, and a browser toolbar can take fifty
+   of those. Every menu here was laid out as one column, and the column that
+   fits a portrait phone with room to spare runs to ~450px sideways — so the
+   title scrolled, the armoury's detail pane and BACK button hung below the
+   fold, and the pause menu did the same. What a sideways phone has instead is
+   width, so each screen becomes a grid that spends it: menu beside sound
+   board, heading beside back button, card grid beside detail pane. The grids
+   are laid over the existing markup by area — nothing moves in index.html, so
+   portrait is untouched and ui.js keeps moving the one sound board between
+   the two menus as before. Tablets are taller than 500px both ways and keep
+   the stacked layout; so does a desktop window until it is squashed flat. */
+@media (orientation: landscape) and (max-height: 500px) {
+  /* ---- Title: plaque and buttons left, sound board right ---- */
+  #screen-title {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "logo   board"
+      "start  board"
+      "powers board"
+      "update board"
+      "hint   board"
+      "exit   board";
+    align-content: center;
+    align-content: safe center;
+    align-items: center;
+    justify-items: center;
+    gap: 10px 28px;
+  }
+  #screen-title .logo { grid-area: logo; }
+  #btn-start { grid-area: start; }
+  #btn-powers { grid-area: powers; }
+  #btn-update { grid-area: update; }
+  #screen-title .hint { grid-area: hint; }
+  #btn-exit-title { grid-area: exit; }
+  #title-board { grid-area: board; }
+  .logo-rule { width: min(40vw, 260px); }
+  /* the board now lives in half the width, not 92% of it */
+  #sound-board { width: min(100%, 380px); }
+
+  /* ---- Pause: same two columns, same board, same side ---- */
+  #screen-pause {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "h2     board"
+      "resume board"
+      "quit   board"
+      "exit   board";
+    align-content: center;
+    align-content: safe center;
+    align-items: center;
+    justify-items: center;
+    gap: 10px 28px;
+    /* The HUD's pause and mute pushbuttons stay live at the top right of this
+       overlay (z-index 20, see #mute-btn). On a 300px-tall phone the board
+       would rise under them, so the menu starts below that row instead. */
+    padding-top: calc(82px + var(--safe-t));
+  }
+  #screen-pause h2 { grid-area: h2; }
+  #btn-resume { grid-area: resume; }
+  #btn-quit { grid-area: quit; }
+  #btn-exit-pause { grid-area: exit; }
+  #pause-board { grid-area: board; }
+
+  /* ---- Armoury: heading and BACK share the top row; below it the card grid
+     and the detail pane split the width and take ALL the remaining height,
+     scrolling inside their own boxes rather than growing the page ---- */
+  #screen-powers {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "head back"
+      "pick pick";
+    align-items: center;
+    gap: 8px 16px;
+  }
+  #screen-powers h2 { grid-area: head; text-align: left; }
+  #btn-powers-back { grid-area: back; }
+  #pw-pick {
+    grid-area: pick;
+    align-self: stretch; justify-self: stretch;
+    width: auto; min-height: 0;
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  #pw-grid {
+    max-height: none; min-height: 0;   /* the row is the limit now */
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+  #pw-detail { min-height: 0; overflow-y: auto; gap: 6px; }
+  /* the vignette keeps the room it can get; previews.js reads the canvas's
+     CSS size when it starts, and ui.js restarts it when the phone turns */
+  #pw-preview, #lc-preview { flex: 0 0 auto; height: clamp(56px, 24vh, 132px); }
+  #pw-detail p, #lc-detail p { font-size: 11px; }
+  .keep-card { padding: 7px 5px 6px; gap: 4px; }
+
+  /* ---- Level clear: the KEEP card fills the screen. #lc-pick dissolves so
+     its grid and detail pane become cells of the card's own grid: everything
+     about the level on the left, the pane the player is reading on the right
+     with CONTINUE under it ---- */
+  .lc-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(220px, 1fr);
+    grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "head  detail"
+      "stats detail"
+      "note  detail"
+      "grid  detail"
+      "saved go";
+    width: 100%; height: 100%;
+    padding: 10px 12px;
+    gap: 8px 14px;
+    align-items: center; justify-items: center;
+  }
+  #lc-heading { grid-area: head; }
+  #lc-stats { grid-area: stats; }
+  #lc-note { grid-area: note; font-size: 12px; }
+  #lc-pick { display: contents; }
+  #lc-grid {
+    grid-area: grid;
+    align-self: stretch; justify-self: stretch;
+    max-height: none; min-height: 0;
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  }
+  #lc-detail {
+    grid-area: detail;
+    align-self: stretch; justify-self: stretch;
+    min-height: 0; overflow-y: auto; gap: 6px;
+  }
+  #lc-saved { grid-area: saved; }
+  #btn-continue { grid-area: go; }
+
+  /* ---- End cards: wider, and the build's three groups flow on one line
+     instead of each taking a row of their own ---- */
+  .end-card:not(.lc-card) { width: min(96vw, 760px); padding: 12px 16px; gap: 8px; }
+  .build-row { max-width: none; }
+  .build-row .build-grp { flex: 0 1 auto; }
+  /* stat plates read as one line, "1234 SCORE", instead of a two-storey tile */
+  .end-stats div { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; min-width: 0; }
+  .end-stats b { font-size: 16px; }
+
+  /* ---- Save slots and difficulties: three cards in a row ---- */
+  #slot-list, #diff-list {
+    flex-direction: row; align-items: stretch;
+    width: min(94vw, 760px);
+  }
+  #slot-list .pick-card, #diff-list .pick-card { flex: 1 1 0; min-width: 0; }
+  #slot-list .pick-card { padding-right: 46px; } /* room for the ✕ */
 }
 
 @media (prefers-reduced-motion: reduce) {

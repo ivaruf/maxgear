@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.6.2'; // quit from the title and pause menus: back to the arcade, or close
+const VERSION = 'v1.6.3'; // the menus fit a phone on its side: no scrolling title, no half-screen armoury
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
