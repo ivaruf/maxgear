@@ -10,12 +10,15 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.6.3'; // the menus fit a phone on its side: no scrolling title, no half-screen armoury
+const VERSION = 'v1.6.4'; // cached shells learn the arcade moved to gophercloud.games
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
   './',
   './index.html',
+  // Has to be IN the cache, not merely deployed: the players this rescues
+  // are the ones whose browser has stopped asking this origin for anything.
+  './moved.js',
   './manifest.webmanifest',
   './css/style.css',
   './js/audio.js',
