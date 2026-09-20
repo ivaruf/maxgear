@@ -72,37 +72,6 @@
     <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
     <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;UPDATE READY</button>
 
-    <!-- The sound board lives inline in the menus, not on a screen of its own.
-         There is ONE of it: ui.showScreen moves this node between the slot here
-         and the one on the pause screen, so the two menus can never drift out
-         of sync and the listeners only ever get attached once. -->
-    <div id="title-board" class="board-slot">
-      <div id="sound-board">
-        <span class="board-cap">SOUND BOARD</span>
-
-        <div class="dial-row">
-          <div class="dial-head">
-            <label class="dial-label" for="vol-music">MUSIC</label>
-            <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
-          </div>
-          <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
-        </div>
-
-        <div class="dial-row">
-          <div class="dial-head">
-            <label class="dial-label" for="vol-sfx">MACHINERY</label>
-            <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
-          </div>
-          <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
-        </div>
-
-        <div class="board-master">
-          <span class="dial-label">MASTER</span>
-          <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
-        </div>
-      </div>
-    </div>
-
     <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
     <!-- Leaving the game itself. Hidden until ui.js knows what it can honestly
          offer, and LOAD-BEARING that it stops the click: this screen starts a
@@ -124,9 +93,8 @@
          keeps the HUD live on purpose. Two clusters cannot have one corner.
          Little is lost by the trade — fullscreen is a document-level state that
          survives every screen change, so it is set on the way in and still in
-         force when IRONCLAD goes down; and the pause menu does not need an icon
-         pointing at the sound board when it has the board itself bolted in
-         under RESUME.
+         force when IRONCLAD goes down; and the pause menu does not need a door
+         to the sound board when it has the board itself bolted in under RESUME.
 
          Clicks inside here are stopped in js/ui.js, exactly as the sound
          board's are: this screen starts a run on a click ANYWHERE, so reaching
@@ -137,9 +105,9 @@
          showScreen would both flash and make the corner depend on a boot that
          is the very thing it is meant to outlive. -->
     <div id="corner-tools">
-      <!-- The speaker takes you to the board below rather than switching
-           anything off, so it carries no slash — the HUD's mute plate is the
-           one that does that, and the board's own MASTER lever is the other. -->
+      <!-- The speaker OPENS the sound board; it does not switch anything off,
+           so it carries no slash. The HUD's mute plate is the one that does
+           that, and the board's own MASTER lever is the other. -->
       <button id="btn-soundboard" class="corner-btn" type="button"
               title="Sound board" aria-label="Sound board">
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -181,6 +149,80 @@
          the one on the title screen, from the same place, so the two menus
          cannot drift apart. -->
     <button class="small-btn exit-btn hidden" id="btn-exit-pause" type="button"></button>
+  </div>
+
+  <!-- ==================== THE SOUND BOARD, ON ITS OWN SCREEN ====================
+       The board used to be bolted into the title screen, permanently, above the
+       hint line. It is not there any more and this screen is where it went.
+
+       WHY IT MOVED: two levels and a cutoff are set once and then never touched
+       again, and hub CLAUDE.md §2 is blunt about where a control like that
+       belongs — behind a door, not on the screen a player sees every single
+       time they come back. fishtank made this exact move with its graphics
+       picker and is better for it. The corner speaker is that door.
+
+       THERE IS STILL ONLY ONE BOARD. This screen owns the markup at rest, and
+       ui.showScreen moves the one #sound-board node between #sound-slot here
+       and #pause-board on the pause menu, exactly as it moved it between the
+       title and the pause menu before. What changed is where it is shown from,
+       not how many of it there are — so the listeners are still attached once
+       and the two places can still never drift apart.
+
+       THE PAUSE MENU DID NOT CHANGE. Mid-run the board is still inline under
+       RESUME: you are already stopped and already in a menu there, so a second
+       door to open would be a door for its own sake.
+
+       A screen and not an overlay, because MAXGEAR already has this shape and
+       the player already knows it — the armoury is a heading, a thing, and a
+       way back. It is a real state in main.js too, which is what buys Esc
+       backing out of it for free. -->
+  <div id="screen-sound" class="screen hidden">
+    <h2>SOUND BOARD</h2>
+    <!-- Where the flavour went when the second dial became plain EFFECTS: this
+         line says what the row actually covers, in MAXGEAR's own words, without
+         being the thing a player has to decode to find their slider. -->
+    <p class="tagline">MUSIC is the band organ · EFFECTS is every gun, gate and boiler</p>
+    <!-- The board's home in the markup. showScreen lends it to #pause-board for
+         the length of a pause and puts it back here afterwards; it only ever
+         moves the node when it is not already where it belongs. -->
+    <div id="sound-slot" class="board-slot">
+      <div id="sound-board">
+        <!-- Redundant on this screen, where the h2 says it louder; CSS hides it
+             while the board is in #sound-slot. It is the board's only label on
+             the pause menu, so it cannot simply be deleted. -->
+        <span class="board-cap">SOUND BOARD</span>
+
+        <div class="dial-row">
+          <div class="dial-head">
+            <label class="dial-label" for="vol-music">MUSIC</label>
+            <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
+          </div>
+          <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
+        </div>
+
+        <div class="dial-row">
+          <div class="dial-head">
+            <!-- EFFECTS, not MACHINERY, which is what this row said until v1.8.
+                 Six of the seven hub games label it EFFECTS and the odd ones out
+                 were renamed for the same reason: somebody reaching for a volume
+                 is not reading for flavour, they are looking for which of two
+                 sliders is theirs, and a word that has to be decoded costs them
+                 that. The id stays vol-sfx. MAXGEAR's own voice went into the
+                 line under the heading, where it can say what the row covers
+                 without being the thing you have to read to find it. -->
+            <label class="dial-label" for="vol-sfx">EFFECTS</label>
+            <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
+          </div>
+          <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
+        </div>
+
+        <div class="board-master">
+          <span class="dial-label">MASTER</span>
+          <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
+        </div>
+      </div>
+    </div>
+    <button class="small-btn" id="btn-sound-back" type="button">BACK</button>
   </div>
 
   <div id="screen-powers" class="screen hidden">

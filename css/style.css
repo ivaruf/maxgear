@@ -884,10 +884,11 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 
 /* ---- v1.6 sound board: two pressure dials on a brass plate ----
-   It sits INLINE in the title and pause menus (ui.showScreen moves the one
-   node between the two slots), so it has to read as a piece of the machine
-   bolted into the menu rather than a settings page — hence the engraved
-   caption, and hence a layout tight enough to live under START RUN.
+   It has a screen of its own behind the corner speaker (v1.8) and sits INLINE
+   on the pause menu; ui.showScreen moves the one node between the two slots.
+   Either way it has to read as a piece of the machine bolted into a menu
+   rather than a settings page — hence the engraved caption, and hence a layout
+   tight enough that it never needed a screen to fit on in the first place.
    The sliders are real <input type="range">, restyled from the shell out: an
    OS slider here would be the one control in MAXGEAR that belongs to no
    machine. The channel is the same recess as the HP bar, filled with brass up
@@ -1059,20 +1060,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 #btn-screen[aria-pressed="true"] .ico-out { display: none; }
 #btn-screen[aria-pressed="true"] .ico-in { display: inline; }
 
-/* The board answers when the speaker plate hails it. On touch there is no
-   :focus-visible ring to show where the eye should go, so the plate says it in
-   brass instead — one thump of the rim, the same gesture #stats-strip uses when
-   a chip's level changes. The reduced-motion block at the foot of this file
-   collapses it to nothing, which is fine: the scroll and the focus are the
-   substance and they both still happen. */
-#sound-board.hail { animation: boardHail 0.85s ease-out 1; }
-@keyframes boardHail {
-  0%, 100% { border-color: var(--rim); box-shadow: var(--sheen), 0 4px 16px rgba(0, 0, 0, 0.5); }
-  26% {
-    border-color: var(--rim-hot);
-    box-shadow: var(--sheen), 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 18px rgba(240, 180, 41, 0.5);
-  }
-}
+/* The board's own engraved caption is the only thing naming it on the pause
+   menu, where it sits inline under RESUME with no heading above it. On its own
+   screen the <h2> says it far louder, so the cap would be the same two words
+   twice, forty pixels apart. Hidden by where the board is standing rather than
+   deleted — the node is one node and moves between both. */
+#sound-slot .board-cap { display: none; }
 
 /* ---- End screens: brass-framed cards ---- */
 .end-card {
@@ -1305,22 +1298,28 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
    the two menus as before. Tablets are taller than 500px both ways and keep
    the stacked layout; so does a desktop window until it is squashed flat. */
 @media (orientation: landscape) and (max-height: 500px) {
-  /* ---- Title: plaque and buttons left, sound board right ---- */
+  /* ---- Title: the plaque left, everything you can press right ----
+     Until v1.8 the right column was the sound board and the whole menu ran
+     down the left. The board is behind a door now, so the column it used to
+     fill is free and the buttons move into it — which is the better split
+     anyway: sideways this screen is a brass plaque beside a row of controls,
+     and the stack that used to run off the bottom is now two short columns
+     neither of which does. The logo spans, because it is one object. */
   #screen-title {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
       "logo   tools"
-      "start  board"
-      "powers board"
-      "update board"
-      "hint   board"
-      "exit   board";
+      "logo   start"
+      "logo   powers"
+      "logo   update"
+      "logo   hint"
+      "logo   exit";
     align-content: center;
     align-content: safe center;
     align-items: center;
     justify-items: center;
-    gap: 10px 28px;
+    gap: 8px 28px;
   }
   #screen-title .logo { grid-area: logo; }
   #btn-start { grid-area: start; }
@@ -1328,30 +1327,52 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #btn-update { grid-area: update; }
   #screen-title .hint { grid-area: hint; }
   #btn-exit-title { grid-area: exit; }
-  #title-board { grid-area: board; }
   /* THE CORNER PLATES COME INTO THE GRID SIDEWAYS. Everywhere else they are
      pinned to the corner and out of flow, which is right when there is room
      above the menu; on a 300px-tall phone there is not, and an absolutely
-     positioned pair would simply sit on top of the sound board. So they become
-     a real cell instead — `position: static` and a grid area of their own, the
-     same by-area trick every other screen in this block uses. They cost the
-     column nothing: they take the row the logo already sets, which is three
-     times their height, and the board shifts down to span the five rows under
-     it. Sideways is exactly where a fullscreen plate earns its keep, so it must
-     not be the thing that pushes the way out below the fold. */
+     positioned pair would simply sit on whatever is up there. So they become a
+     real cell instead — `position: static` and a grid area of their own, the
+     same by-area trick every other screen in this block uses. Sideways is
+     exactly where a fullscreen plate earns its keep, so it must not be the
+     thing that pushes the way out below the fold. */
   #corner-tools {
     position: static;
     grid-area: tools;
     justify-self: end;
-    /* the grid centres its items; these still want to read as a corner, so
-       they sit at the top of the row the logo sets rather than halfway down */
-    align-self: start;
+    align-self: center;
   }
   /* Thirty-eight, and no lower: this query only ever fires on a phone, where
      the pointer is still a finger. */
   .corner-btn { width: 38px; height: 38px; }
   .corner-btn svg { width: 19px; height: 19px; }
   .logo-rule { width: min(40vw, 260px); }
+
+  /* ---- Sound: the heading and the way out left, the board right ----
+     Same two columns and the same reason. The board is the tallest thing here
+     by a factor of three, so standing the words beside it rather than above it
+     is what keeps BACK on screen on a 300px phone.
+     `sub` is the line explaining what each dial covers, and at this height the
+     max-height:560px block above has already hidden every .tagline — so the row
+     collapses to nothing here. It keeps an area anyway, because the rule this
+     whole block exists to serve is that a menu element without one lands in an
+     auto row the moment somebody shows it again. */
+  #screen-sound {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-areas:
+      "head  board"
+      "sub   board"
+      "back  board";
+    align-content: center;
+    align-content: safe center;
+    align-items: center;
+    justify-items: center;
+    gap: 10px 28px;
+  }
+  #screen-sound h2 { grid-area: head; }
+  #screen-sound .tagline { grid-area: sub; }
+  #sound-slot { grid-area: board; }
+  #btn-sound-back { grid-area: back; }
   /* the board now lives in half the width, not 92% of it */
   #sound-board { width: min(100%, 380px); }
 

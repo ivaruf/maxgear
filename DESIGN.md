@@ -8,7 +8,8 @@ tutorial waves → escalating encounters with upgrade gates → boss → victory
 - Serve statically (`python3 -m http.server`). DOM overlay for HUD + menu screens, canvas for world.
 - Menus are laid out twice in `css/style.css`: as one centred column, and — under
   `(orientation: landscape) and (max-height: 500px)`, i.e. a phone on its side — as CSS grids
-  placed by area over the same markup (menu beside sound board; armoury heading beside BACK
+  placed by area over the same markup (title plaque beside its buttons; sound heading beside
+  the board; pause menu beside the board; armoury heading beside BACK
   with grid and detail filling the rest and scrolling inside their own boxes; the KEEP card
   dissolves `#lc-pick` with `display: contents` so its two halves become card cells). Add a
   menu element and it needs a `grid-area` in that block or it lands in an auto row. The
@@ -158,13 +159,17 @@ synthesis for a new sound, add a piece and re-run the build.
   sums into mud when a sound repeats. Check both if you retune it.
 - `setBossMode` ducks: normal play runs the music at 80% of the slider, the end fight at 100%.
   One fixed track has no intensity layer, so level is the only honest lever.
-- The board is INLINE in the title and pause menus, not a screen — there is no 'settings'
-  state. `#sound-board` is a single node that `ui.showScreen` moves between `#title-board`
-  and `#pause-board`, which is what stops the two menus drifting apart and keeps the
-  listeners attached once. Two consequences worth knowing before you touch it: clicks inside
-  it must keep stopping propagation (the title screen starts a run on a click anywhere), and
-  its controls call `audio.unlock()` themselves, because on the title screen the board may be
-  the player's first touch of the game.
+- The board has a screen of its own (`#screen-sound`, state `'sound'`, opened by the corner
+  speaker) and sits INLINE on the pause menu. `#sound-board` is a single node that
+  `ui.showScreen` moves between `#sound-slot` and `#pause-board`, which is what stops the
+  two from drifting apart and keeps the listeners attached once. It was bolted permanently
+  into the title screen until v1.8; the node and the move are unchanged, only where it is
+  shown from — two levels and a cutoff are set once, and hub CLAUDE.md §2 puts a control
+  like that behind a door rather than on the screen a player sees every time. Its controls
+  call `audio.unlock()` themselves, because the board may be the player's first touch of the
+  game. The two rows are MUSIC and EFFECTS; the second said MACHINERY until v1.8 and the
+  flavour moved to the line under the heading, because somebody hunting for a slider should
+  not have to decode a word to find it.
 - Anything unloaded is SKIPPED, never queued — a clank a second late is worse than no clank.
 Boss HP is DPS-scaled at spawn in main.js (~30s fight for any build) with an overheat-decay failsafe after 75s.
 

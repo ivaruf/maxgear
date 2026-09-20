@@ -79,7 +79,8 @@ the build you entered it with.
 | Pause | `Esc` / `P` (or ⏸ button) | ⏸ button |
 | Restart level | `R` (any time) | tap after defeat |
 | Mute | `M` (or 🔊 button) | 🔊 button |
-| Music / effects levels | the SOUND BOARD, inline on the title and pause menus | same |
+| Music / effects levels | the SOUND BOARD — the 🔊 plate in the title screen's top-right corner, or inline on the pause menu | same |
+| Fullscreen | the ⛶ plate in the title screen's top-right corner (where the browser has it) | same |
 
 **Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
 (LV1→LV5)** — crossing a gate grants levels; **shooting** a chargeable gate (pulsing ⌖) pumps
@@ -196,11 +197,12 @@ Every sound is a rendered file (v1.6 — the game synthesized all of it in WebAu
 - **Rebuild both**: `tools/audio/build.sh` from the game root. It needs Sonic Pi, ffmpeg and
   a real audio device — the effects are recorded in realtime and are audible while it works.
   The script's header explains the mix calibration; read it before changing a piece.
-- **Levels**: two buses, both remembered in `localStorage` under `maxgear.audio.v1` along
-  with mute. The player sets them on the SOUND BOARD, which sits inline in the title and
-  pause menus — one node, moved between them, never a screen of its own. The end fight
-  raises the music by un-ducking it: with a single fixed track, level is the only intensity
-  lever there is.
+- **Levels**: two buses — MUSIC and EFFECTS — both remembered in `localStorage` under
+  `maxgear.audio.v1` along with mute. The player sets them on the SOUND BOARD, which has a
+  screen of its own behind the title screen's corner speaker and sits inline on the pause
+  menu: one node, moved between the two, so they can never drift apart. The end fight raises
+  the music by un-ducking it: with a single fixed track, level is the only intensity lever
+  there is.
 - A file that fails to load warns once to the console and plays nothing; the game never
   waits on audio and never breaks without it.
 

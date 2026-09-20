@@ -258,6 +258,7 @@ function handleInput() {
     case 'slots':
     case 'newgame':
     case 'powers':
+    case 'sound':
       if (pausePress) { audio.click(); setState('title'); } // Esc backs out
       break;
     case 'playing':
@@ -334,6 +335,13 @@ ui.init(game, {
   confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
   showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
+  // v1.8: the sound board is a door off the title screen now, opened by the
+  // corner speaker. Modelled on showPowers down to the guard — you can only get
+  // there from the title, and unlocking on the way in is what lets the very
+  // first thing a player touches be a volume they can actually hear moving.
+  // It needs no ui.showSound(): showScreen already moves the one board node
+  // into this screen's slot the way it always moved it into the title's.
+  showSound: () => { if (game.state === 'title') { audio.unlock(); setState('sound'); } },
   backToTitle: () => setState('title'),
   applyUpdate: () => { if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); },
 });

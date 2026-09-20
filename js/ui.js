@@ -583,6 +583,7 @@ export const ui = {
         slots: $('screen-slots'),
         newgame: $('screen-newgame'),
         levelclear: $('screen-levelclear'),
+        sound: $('screen-sound'),
       },
       slotList: $('slot-list'),
       diffList: $('diff-list'),
@@ -602,7 +603,7 @@ export const ui = {
       muteBtn: $('mute-btn'),
       btnUpdate: $('btn-update'), versionTag: $('game-version'),
       soundBoard: $('sound-board'),
-      titleBoard: $('title-board'), pauseBoard: $('pause-board'),
+      soundSlot: $('sound-slot'), pauseBoard: $('pause-board'),
       volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
       volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
       btnCutoff: $('btn-cutoff'),
@@ -711,28 +712,28 @@ export const ui = {
       }
     }
 
-    // ---- v1.6 sound board -------------------------------------------------
-    // It sits inline in the title and pause menus (showScreen moves the one
-    // node between them). LOAD-BEARING: the title screen starts a run on a
-    // click anywhere, so every click inside the board has to stop there —
-    // otherwise nudging a slider on the title screen launches the game.
-    if (els.soundBoard) {
-      els.soundBoard.addEventListener('click', (ev) => ev.stopPropagation());
-    }
+    // ---- sound board (v1.6; behind a door since v1.8) -----------------------
+    // The board lives on #screen-sound and is lent to the pause menu while a
+    // run is stopped — showScreen owns that move. Neither screen starts a run
+    // on a click anywhere, so the board no longer carries the stopPropagation
+    // it needed while it was bolted into the title screen. The corner cluster
+    // still does, because the corner is the one thing left sitting there.
+    tap($('btn-sound-back'), actions.backToTitle);
     tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
 
-    // ---- v1.7 corner plates -------------------------------------------------
-    // The title screen's own top-right pair: a speaker that takes you to the
-    // sound board, and js/screen.js's fullscreen plate. index.html says why
-    // they live on this screen and nowhere else.
+    // ---- corner plates (v1.7) -----------------------------------------------
+    // The title screen's own top-right pair: a speaker that opens the sound
+    // board, and js/screen.js's fullscreen plate. index.html says why they live
+    // on this screen and nowhere else.
     //
-    // SAME STOP AS THE BOARD'S, AND FOR THE SAME REASON: the title screen
-    // starts a run on a click anywhere, so a tap on either plate must die here
-    // instead of launching the game on its way past. One listener on the
-    // cluster covers both, which is what keeps screen.js able to know nothing
-    // about this screen. It also gives the fullscreen plate the same iron click
-    // every other control in MAXGEAR answers with — screen.js does the actual
-    // work and never touches the audio graph.
+    // THE CLICK MUST DIE HERE. The title screen starts a run on a click
+    // anywhere, so a tap on either plate must not launch the game on its way
+    // past — this is the stop the sound board used to carry for the same
+    // reason, now that the corner is what sits on that screen instead. One
+    // listener on the cluster covers both plates, which is what keeps screen.js
+    // able to know nothing about this screen. It also gives the fullscreen
+    // plate the same iron click every other control in MAXGEAR answers with —
+    // screen.js does the actual work and never touches the audio graph.
     if (els.cornerTools) {
       els.cornerTools.addEventListener('click', (ev) => {
         ev.stopPropagation();
@@ -741,28 +742,14 @@ export const ui = {
       });
     }
 
-    // The speaker LEADS TO the board rather than duplicating its dials: there
-    // is one sound board in this game and showScreen moves that one node
-    // between the menus, so a second set of controls in the corner would be
-    // exactly the drift that design exists to prevent.
+    // The speaker OPENS the board — it is a door, not a shortcut to something
+    // already on screen. There is still exactly one board: this raises the
+    // screen it lives on, and showScreen moves that same single node.
     //
-    // What "leads to" buys on a screen where the board is already bolted in
-    // below START RUN: on a short phone the title column scrolls and the board
-    // is the part under the fold, so this scrolls it up; and focus lands on the
-    // MUSIC dial, which puts the arrow keys straight onto the level instead of
-    // making a keyboard player Tab past every button first. The hail in brass
-    // is for the touch case, where
-    // :focus-visible never fires and a silent focus would look like a dead
-    // button. Re-triggered the same way the KEEP grid re-triggers its refusal
-    // shake: drop the class, force a reflow, put it back.
-    if (els.btnSoundboard && els.soundBoard) {
-      els.btnSoundboard.addEventListener('click', () => {
-        els.soundBoard.scrollIntoView({ block: 'nearest' });
-        if (els.volMusic && els.volMusic.focus) els.volMusic.focus({ preventScroll: true });
-        els.soundBoard.classList.remove('hail');
-        void els.soundBoard.offsetWidth;
-        els.soundBoard.classList.add('hail');
-      });
+    // Not via `tap`: the cluster's own listener above already answers with the
+    // click, and two clanks for one press is one clank too many.
+    if (els.btnSoundboard) {
+      els.btnSoundboard.addEventListener('click', actions.showSound);
     }
 
     // Sliders move on 'input' (every step, so the bus follows the thumb) and
@@ -900,10 +887,13 @@ export const ui = {
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
     if (state !== 'powers') stopPowerPreview();
-    // One board, two homes. Moving the single node is what keeps the title and
-    // the pause menu from drifting apart: there is only ever one set of
-    // controls, with one set of listeners, and it follows the open menu.
-    const boardHome = state === 'title' ? els.titleBoard : state === 'pause' ? els.pauseBoard : null;
+    // One board, two homes — its own screen behind the corner speaker, and
+    // inline on the pause menu. Moving the single node is what keeps the two
+    // from drifting apart: there is only ever one set of controls, with one set
+    // of listeners, and it follows whichever is open. (Before v1.8 the first
+    // home was #title-board, bolted permanently into the title screen; the node
+    // and the move are unchanged, only where it is shown from.)
+    const boardHome = state === 'sound' ? els.soundSlot : state === 'pause' ? els.pauseBoard : null;
     if (boardHome && els.soundBoard) {
       if (els.soundBoard.parentNode !== boardHome) boardHome.appendChild(els.soundBoard);
       paintSoundBoard();
