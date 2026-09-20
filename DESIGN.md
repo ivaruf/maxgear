@@ -205,6 +205,7 @@ js/gates.js js/pickups.js           — upgrade agent
 js/level.js js/obstacles.js         — level agent
 js/effects.js (+render.js visuals)  — fx agent
 js/ui.js js/audio.js (+style.css)   — ui/audio agent
+js/screen.js                        — ui/audio agent (see the exception below)
 tools/audio/ assets/audio/          — ui/audio agent (the .rb pieces are content; nothing
                                       writes assets/audio except tools/audio/build.sh)
 js/upgrades.js                      — upgrade agent (track tables, recompute, boss estimator)
@@ -213,3 +214,14 @@ js/bulletStyle.js                   — visuals (bespoke bullet styles + sprites
 ```
 Rules for sub-agents: work ONLY in your files, code against the interfaces above, no new global
 state, no DOM access outside ui.js, no top-level side effects (export functions; main.js wires).
+
+`js/screen.js` (v1.7) breaks the last two on purpose and must stay broken. It is the title
+screen's fullscreen plate: index.html loads it as its OWN `<script type="module">` beside
+main.js, so it imports nothing, exports nothing, touches the DOM at the top level and is not
+part of main.js's graph at all. That is the point — the title screen is plain markup the browser
+paints before the game runs, so a boot failure anywhere else leaves the plate working, and
+nothing in the plate can take the game down. Do not fold it into ui.js, do not import it from
+anywhere, and do not rename it to the API it calls: uBlock Origin's default lists ban that
+basename across the whole of github.io and a blocked static import blanks the entire module
+graph (hub CLAUDE.md §2). It is listed by hand in sw.js's ASSETS for the same reason nothing
+imports it.

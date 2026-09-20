@@ -1003,6 +1003,77 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #sound-board input[type="range"] { height: 30px; }
 }
 
+/* ---- v1.7 the corner plates: the title screen's top right ----
+   Two more of the HUD's brass pushbuttons, deliberately built from the same
+   recipe as #mute-btn and #pause-btn above rather than from a soft glass pill
+   borrowed off another game in the arcade: MAXGEAR's answer to "a small round
+   control" already exists, and a player who has learnt it mid-run should not
+   have to learn a second one on the menu. index.html says why the pair is on
+   the title screen and on no other.
+   42px, so a thumb on a tablet has somewhere to land, and both insets are
+   respected so the pair clears a notch on a phone held either way up. */
+#corner-tools {
+  position: absolute;
+  top: calc(12px + var(--safe-t));
+  right: calc(12px + var(--safe-r));
+  display: flex;
+  gap: 8px;
+  /* above the title screen's two turning gears, which are pseudo-elements with
+     no z-index of their own; below the HUD's plates at 20, which never share a
+     screen with these. */
+  z-index: 2;
+}
+/* THE `hidden` ATTRIBUTE HAS TO WIN HERE, AND ON ITS OWN IT DOES NOT: the UA
+   sheet's `[hidden] { display: none }` is a type-less rule and .corner-btn sets
+   `display: flex`, which outranks it. Without this line the fullscreen plate
+   would be visible on an iPhone — the one browser the attribute exists to hide
+   it from — and pressing it would do precisely nothing. */
+#corner-tools .corner-btn[hidden] { display: none; }
+
+.corner-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  background: radial-gradient(circle at 50% 30%, #e0ac53, #a06f27 62%, #5e3f16);
+  border: 1px solid rgba(255, 236, 196, 0.4);
+  color: #2a1c06;      /* the engraving is dark ink cut into the brass */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 246, 218, 0.65),
+    inset 0 -3px 6px rgba(70, 44, 12, 0.6),
+    0 2px 7px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+.corner-btn:active {
+  transform: scale(0.92);
+  background: radial-gradient(circle at 50% 30%, #b8873c, #7a5219 65%, #472f10);
+}
+/* Stroked and never filled, so one `currentColor` drives the whole glyph. */
+.corner-btn svg { display: block; width: 21px; height: 21px; }
+.corner-btn:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+
+/* One <svg> carries BOTH states of the fullscreen plate — four corners pushing
+   out, and the same four pulled in — and aria-pressed chooses. js/screen.js
+   writes that attribute and the accessible label from one paint(), so what is
+   engraved and what is announced cannot drift apart. */
+#btn-screen .ico-in { display: none; }
+#btn-screen[aria-pressed="true"] .ico-out { display: none; }
+#btn-screen[aria-pressed="true"] .ico-in { display: inline; }
+
+/* The board answers when the speaker plate hails it. On touch there is no
+   :focus-visible ring to show where the eye should go, so the plate says it in
+   brass instead — one thump of the rim, the same gesture #stats-strip uses when
+   a chip's level changes. The reduced-motion block at the foot of this file
+   collapses it to nothing, which is fine: the scroll and the focus are the
+   substance and they both still happen. */
+#sound-board.hail { animation: boardHail 0.85s ease-out 1; }
+@keyframes boardHail {
+  0%, 100% { border-color: var(--rim); box-shadow: var(--sheen), 0 4px 16px rgba(0, 0, 0, 0.5); }
+  26% {
+    border-color: var(--rim-hot);
+    box-shadow: var(--sheen), 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 18px rgba(240, 180, 41, 0.5);
+  }
+}
+
 /* ---- End screens: brass-framed cards ---- */
 .end-card {
   position: relative;
@@ -1239,7 +1310,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      "logo   board"
+      "logo   tools"
       "start  board"
       "powers board"
       "update board"
@@ -1258,6 +1329,28 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #screen-title .hint { grid-area: hint; }
   #btn-exit-title { grid-area: exit; }
   #title-board { grid-area: board; }
+  /* THE CORNER PLATES COME INTO THE GRID SIDEWAYS. Everywhere else they are
+     pinned to the corner and out of flow, which is right when there is room
+     above the menu; on a 300px-tall phone there is not, and an absolutely
+     positioned pair would simply sit on top of the sound board. So they become
+     a real cell instead — `position: static` and a grid area of their own, the
+     same by-area trick every other screen in this block uses. They cost the
+     column nothing: they take the row the logo already sets, which is three
+     times their height, and the board shifts down to span the five rows under
+     it. Sideways is exactly where a fullscreen plate earns its keep, so it must
+     not be the thing that pushes the way out below the fold. */
+  #corner-tools {
+    position: static;
+    grid-area: tools;
+    justify-self: end;
+    /* the grid centres its items; these still want to read as a corner, so
+       they sit at the top of the row the logo sets rather than halfway down */
+    align-self: start;
+  }
+  /* Thirty-eight, and no lower: this query only ever fires on a phone, where
+     the pointer is still a finger. */
+  .corner-btn { width: 38px; height: 38px; }
+  .corner-btn svg { width: 19px; height: 19px; }
   .logo-rule { width: min(40vw, 260px); }
   /* the board now lives in half the width, not 92% of it */
   #sound-board { width: min(100%, 380px); }

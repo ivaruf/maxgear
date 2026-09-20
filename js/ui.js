@@ -606,6 +606,7 @@ export const ui = {
       volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
       volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
       btnCutoff: $('btn-cutoff'),
+      cornerTools: $('corner-tools'), btnSoundboard: $('btn-soundboard'),
     };
 
     // --- legend nodes: 2 icon canvases + one text slab per span --------------
@@ -684,7 +685,14 @@ export const ui = {
      * launch one on the way out. */
     const exit = window.ArcadeExit;
     if (exit) {
-      const label = exit.verb({ arcade: '◂ BACK TO THE ARCADE', app: '✕ CLOSE', tab: '✕ CLOSE' });
+      /* Plain words, not MAXGEAR's. A way out is the one control on the menu
+       * that must mean the same thing in every game in the hub, so it says
+       * where it goes and nothing more — the case and the ◂ / ✕ are typography
+       * and stay. `tab` is not passed: verb() reads it only when there is no
+       * arcade to go back to, and in that case `app` is already the honest
+       * answer. Framed or in a tab this goes back to the arcade; installed it
+       * closes the window. */
+      const label = exit.verb({ arcade: '◂ BACK TO ARCADE', app: '✕ CLOSE' });
       for (const id of ['btn-exit-title', 'btn-exit-pause']) {
         const button = $(id);
         if (!button) continue;
@@ -712,6 +720,50 @@ export const ui = {
       els.soundBoard.addEventListener('click', (ev) => ev.stopPropagation());
     }
     tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
+
+    // ---- v1.7 corner plates -------------------------------------------------
+    // The title screen's own top-right pair: a speaker that takes you to the
+    // sound board, and js/screen.js's fullscreen plate. index.html says why
+    // they live on this screen and nowhere else.
+    //
+    // SAME STOP AS THE BOARD'S, AND FOR THE SAME REASON: the title screen
+    // starts a run on a click anywhere, so a tap on either plate must die here
+    // instead of launching the game on its way past. One listener on the
+    // cluster covers both, which is what keeps screen.js able to know nothing
+    // about this screen. It also gives the fullscreen plate the same iron click
+    // every other control in MAXGEAR answers with — screen.js does the actual
+    // work and never touches the audio graph.
+    if (els.cornerTools) {
+      els.cornerTools.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        audio.unlock();
+        audio.click();
+      });
+    }
+
+    // The speaker LEADS TO the board rather than duplicating its dials: there
+    // is one sound board in this game and showScreen moves that one node
+    // between the menus, so a second set of controls in the corner would be
+    // exactly the drift that design exists to prevent.
+    //
+    // What "leads to" buys on a screen where the board is already bolted in
+    // below START RUN: on a short phone the title column scrolls and the board
+    // is the part under the fold, so this scrolls it up; and focus lands on the
+    // MUSIC dial, which puts the arrow keys straight onto the level instead of
+    // making a keyboard player Tab past every button first. The hail in brass
+    // is for the touch case, where
+    // :focus-visible never fires and a silent focus would look like a dead
+    // button. Re-triggered the same way the KEEP grid re-triggers its refusal
+    // shake: drop the class, force a reflow, put it back.
+    if (els.btnSoundboard && els.soundBoard) {
+      els.btnSoundboard.addEventListener('click', () => {
+        els.soundBoard.scrollIntoView({ block: 'nearest' });
+        if (els.volMusic && els.volMusic.focus) els.volMusic.focus({ preventScroll: true });
+        els.soundBoard.classList.remove('hail');
+        void els.soundBoard.offsetWidth;
+        els.soundBoard.classList.add('hail');
+      });
+    }
 
     // Sliders move on 'input' (every step, so the bus follows the thumb) and
     // audition on 'change' (once, when the player lets go) — an iron clank on

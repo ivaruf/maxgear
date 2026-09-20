@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.6.4'; // cached shells learn the arcade moved to gophercloud.games
+const VERSION = 'v1.7.0'; // corner plates on the title screen: sound board and fullscreen; ways out say plain words
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -40,6 +40,11 @@ const ASSETS = [
   './js/projectiles.js',
   './js/render.js',
   './js/saves.js',
+  // Nothing imports this one — index.html loads it as its own module script, on
+  // purpose (see its header) — so it is not reachable from main.js's graph and
+  // would never have arrived here by following imports. Listed by hand, because
+  // a corner plate that only works online is not the kind of button it is.
+  './js/screen.js',
   './js/ui.js',
   './js/upgrades.js',
   './js/utils.js',

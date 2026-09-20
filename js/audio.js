@@ -52,8 +52,31 @@ const buffers = new Map();   // name -> AudioBuffer, once decoded
 const pending = new Map();   // name -> Promise, from the moment it is asked for
 
 // ---- persisted preferences ---------------------------------------------------
-// One record, one key (hub storage convention: <slug>.<thing>.v<n>). Mute is
-// remembered too, which the synthesised version never did.
+// One record, one key. Mute is remembered too, which the synthesised version
+// never did.
+//
+// WHY THIS KEY DOES NOT BECOME maxgear.vol.music.v1 / maxgear.vol.sfx.v1.
+// The hub is fitting one sound panel to every arcade game and those two names
+// are the shape it asks new games for. MAXGEAR is not one of them, and hub
+// CLAUDE.md §6 is the rule that settles it: existing keys are not renamed,
+// because a rename is a silent reset of something the player chose. Three more
+// reasons this is not even a close call:
+//
+//   · 'maxgear.audio.v1' is ALREADY the convention. §6 asks for
+//     <slug>.<thing>.v<n>, dot-separated and versioned, and that is exactly
+//     what this is — slug, thing, version. It is not a legacy oddity like
+//     dam_break's 'dam-builder-save-v1'; there is nothing here to bring into
+//     line.
+//   · The two-key shape has no slot for `muted`, and this record carries it.
+//     Splitting would mean three keys, one of them outside the pattern anyway,
+//     to express what one JSON object already says.
+//   · A migration that reads the old key and writes two new ones is code whose
+//     only job is to not lose anyone's settings, running on every launch
+//     forever, to buy a rename nobody can see. The honest version of that work
+//     is not doing it.
+//
+// So: one key, unchanged, and it stays that way. Adding a fourth field here is
+// free; renaming the key never will be.
 const prefs = { music: DEFAULT_MUSIC, sfx: DEFAULT_SFX, muted: false };
 
 try {
