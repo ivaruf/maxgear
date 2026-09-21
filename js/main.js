@@ -373,7 +373,23 @@ ui.init(game, {
   },
   backFromSound: () => setState(soundReturn),
   backToTitle: () => setState('title'),
-  applyUpdate: () => { if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); },
+  // Tapping UPDATE READY is a promise the button has to keep. It used to post
+  // SKIP_WAITING and rely entirely on `controllerchange` to reload — and when
+  // that event does not come the pill sits at "UPDATING…" for the rest of the
+  // session with no way back, which is the dead end this hub keeps saying is
+  // worse than no button at all. It does not always come: a page loaded by a
+  // hard refresh is UNCONTROLLED, and `hadController` is then false, so the
+  // listener below deliberately declines to reload; and a waiting worker that
+  // has gone redundant between the offer and the tap never answers at all.
+  //
+  // So say out loud that a reload was asked for, and reload anyway if nothing
+  // has happened shortly. A redundant reload costs a title screen; a stuck
+  // pill costs the update.
+  applyUpdate: () => {
+    updateRequested = true;
+    if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
+  },
 });
 ui.showScreen('title');
 // v1.6: mute and both levels are remembered across sessions now, so the HUD
@@ -403,6 +419,10 @@ window.MG = {
 // mid-run. The title's version tag is asked FROM the worker (GET_VERSION), so
 // it always shows the build that is actually serving this session.
 let swReg = null;
+// Set the moment the player taps UPDATE READY, and never cleared: from then on
+// a reload is something they have asked for rather than something we are
+// deciding to do to them, which is what makes the fallback below safe.
+let updateRequested = false;
 
 function swVersion(worker) {
   return new Promise((resolve) => {
@@ -447,7 +467,11 @@ if ('serviceWorker' in navigator) {
     });
   });
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (hadController && game.state === 'title') location.reload();
+    // `hadController` still guards the case nobody asked for: a first install
+    // claiming a page that was never controlled must not yank it out from
+    // under a player. But once UPDATE READY has been tapped, the reload IS the
+    // thing that was asked for, and refusing it is how the pill got stuck.
+    if ((updateRequested || hadController) && game.state === 'title') location.reload();
   });
 }
 

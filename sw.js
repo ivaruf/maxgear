@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.8.3'; // serve only our own cache, and never lose the way out to a stale exit.js
+const VERSION = 'v1.8.4'; // UPDATE READY always finishes: reload when asked, and anyway after three seconds
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
