@@ -583,7 +583,6 @@ export const ui = {
         slots: $('screen-slots'),
         newgame: $('screen-newgame'),
         levelclear: $('screen-levelclear'),
-        sound: $('screen-sound'),
       },
       slotList: $('slot-list'),
       diffList: $('diff-list'),
@@ -600,14 +599,15 @@ export const ui = {
       victoryStats: $('victory-stats'),
       defeatBuild: $('defeat-build'),
       victoryBuild: $('victory-build'),
-      muteBtn: $('mute-btn'),
+      muteBtn: $('btn-mute'),
       btnUpdate: $('btn-update'), versionTag: $('game-version'),
       soundBoard: $('sound-board'),
-      soundSlot: $('sound-slot'), pauseBoard: $('pause-board'),
       volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
       volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
       btnCutoff: $('btn-cutoff'),
-      cornerTools: $('corner-tools'), btnSoundboard: $('btn-soundboard'),
+      cornerTools: $('corner-tools'), btnMenu: $('btn-menu'),
+      menuTitle: $('menu-title'), btnMenuClose: $('btn-menu-close'),
+      btnResume: $('btn-resume'), btnQuit: $('btn-quit'),
     };
 
     // --- legend nodes: 2 icon canvases + one text slab per span --------------
@@ -669,7 +669,6 @@ export const ui = {
     tap($('btn-again'), actions.restart);
     tap($('btn-resume'), actions.resume);
     tap($('btn-quit'), actions.quit);
-    tap($('pause-btn'), actions.pause);
     tap(els.muteBtn, actions.mute);
 
     /* Leaving the GAME, as opposed to quitting to the title.
@@ -737,14 +736,13 @@ export const ui = {
     }
 
     // ---- sound board (v1.6; behind a door since v1.8) -----------------------
-    // The board lives on #screen-sound and is lent to the pause menu while a
-    // run is stopped — showScreen owns that move. Neither screen starts a run
-    // on a click anywhere, so the board no longer carries the stopPropagation
-    // it needed while it was bolted into the title screen. The corner cluster
-    // still does, because the corner is the one thing left sitting there.
-    // Not backToTitle: the speaker is on every screen now, so the board can be
-    // opened from anywhere and BACK has to return there. main.js remembers.
-    tap($('btn-sound-back'), actions.backFromSound);
+    // The board has one home: the menu panel, which is also the pause menu.
+    // It used to be lent between that and a screen of its own; those are one
+    // screen now, so nothing moves it and there is nothing to keep in step.
+    // It carries no stopPropagation — the screen it sits on does not start a
+    // run on a click anywhere, unlike the title screen it was bolted into
+    // before v1.8. The corner cluster still stops its own clicks, because the
+    // corner is the one thing left sitting over a screen that does.
     tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
 
     // ---- corner plates (v1.7) -----------------------------------------------
@@ -768,15 +766,15 @@ export const ui = {
       });
     }
 
-    // The speaker OPENS the board — it is a door, not a shortcut to something
-    // already on screen. There is still exactly one board: this raises the
-    // screen it lives on, and showScreen moves that same single node.
+    // The menu plate. Mid-run main.js stops the game before raising it;
+    // anywhere else there is nothing to stop and it simply opens.
     //
     // Not via `tap`: the cluster's own listener above already answers with the
     // click, and two clanks for one press is one clank too many.
-    if (els.btnSoundboard) {
-      els.btnSoundboard.addEventListener('click', actions.showSound);
-    }
+    if (els.btnMenu) els.btnMenu.addEventListener('click', actions.showMenu);
+    // CLOSE is the way out when the menu is not a pause — there is no RESUME
+    // to serve as one. Same door Esc uses; main.js remembers which.
+    tap(els.btnMenuClose, actions.closeMenu);
 
     // Sliders move on 'input' (every step, so the bus follows the thumb) and
     // audition on 'change' (once, when the player lets go) — an iron clank on
@@ -913,17 +911,12 @@ export const ui = {
     els.hud.classList.toggle('hidden', !(state === null || state === 'pause'));
     if (state !== 'levelclear') stopKeepPreview(); // never leak a preview rAF loop
     if (state !== 'powers') stopPowerPreview();
-    // One board, two homes — its own screen behind the corner speaker, and
-    // inline on the pause menu. Moving the single node is what keeps the two
-    // from drifting apart: there is only ever one set of controls, with one set
-    // of listeners, and it follows whichever is open. (Before v1.8 the first
-    // home was #title-board, bolted permanently into the title screen; the node
-    // and the move are unchanged, only where it is shown from.)
-    const boardHome = state === 'sound' ? els.soundSlot : state === 'pause' ? els.pauseBoard : null;
-    if (boardHome && els.soundBoard) {
-      if (els.soundBoard.parentNode !== boardHome) boardHome.appendChild(els.soundBoard);
-      paintSoundBoard();
-    }
+    // The board has ONE home now and never moves. It was lent between a pause
+    // slot and a sound-screen slot while those were two screens; they are one
+    // screen whose contents adapt, so there is nothing left to lend it to and
+    // the node simply lives in the menu. Repaint it whenever the menu comes up,
+    // because a level may have been changed by the keyboard since.
+    if (state === 'pause') paintSoundBoard();
     if (state === null) clearToasts(); // fresh run: drop any queued toast from the last one
     if (state === null && !steerHintShown) {
       steerHintShown = true;
@@ -955,9 +948,28 @@ export const ui = {
   },
 
   setMuted(m) {
-    els.muteBtn.textContent = m ? '🔇' : '🔊';
+    // aria-pressed carries the state and CSS draws the slash off it, the same
+    // pairing the fullscreen plate uses — so the picture and what a screen
+    // reader is told come from one write and cannot drift. It was an emoji
+    // swapped into textContent, which no reader announces and which never
+    // looked like the brass around it.
+    els.muteBtn.setAttribute('aria-pressed', String(!!m));
     els.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
-    paintSoundBoard();   // the board's lever shows the same state as the HUD
+    els.muteBtn.title = m ? 'Unmute (M)' : 'Mute (M)';
+    paintSoundBoard();   // the board's MASTER lever shows the same state
+  },
+
+  /* What the one menu panel says, given where it was opened from. Mid-run it is
+     a pause and carries the two things only a run has — RESUME, and something
+     to abandon. Anywhere else those would both be lies, so they go, and CLOSE
+     becomes the way back out. Nothing is built twice: the levels, the way out
+     and the panel itself are the same nodes either way. */
+  paintMenu(inRun) {
+    if (!els) return;
+    if (els.menuTitle) els.menuTitle.textContent = inRun ? 'PAUSED' : 'SETTINGS';
+    if (els.btnResume) els.btnResume.classList.toggle('hidden', !inRun);
+    if (els.btnQuit) els.btnQuit.classList.toggle('hidden', !inRun);
+    if (els.btnMenuClose) els.btnMenuClose.classList.toggle('hidden', inRun);
   },
 
   // v1.5.2: the version that is actually serving this session (from the SW).

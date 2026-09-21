@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.8.4'; // UPDATE READY always finishes: reload when asked, and anyway after three seconds
+const VERSION = 'v1.9.0'; // three plates in the corner: menu, mute, fullscreen — and one menu panel instead of two
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

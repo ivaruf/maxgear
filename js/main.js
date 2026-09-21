@@ -161,16 +161,27 @@ function restartLevel() {
   startLevel(c.levelIndex, c.levelStartTracks);
 }
 
-/* Where the sound board's BACK goes: whatever screen the corner speaker was
-   pressed from. Declared out here beside setState rather than inside the
-   actions object because the Esc path in the state machine reads it too, and
-   both have to agree or Esc and BACK would leave by different doors. */
-let soundReturn = 'title';
+/* Where CLOSE leaves the menu for: whatever screen the plate was pressed from.
+   Declared out here beside setState rather than inside the actions object
+   because the Esc path in the state machine reads it too, and both have to
+   agree or Esc and CLOSE would leave by different doors. */
+let menuReturn = 'title';
 
 function setState(s) {
+  const from = game.state;
   game.state = s;
   if (s === 'playing') input.clear(); // drops drag accumulated while paused
   ui.showScreen(s === 'playing' ? null : s === 'paused' ? 'pause' : s);
+  if (s === 'paused') {
+    // Anything that stops a live run is a pause, whoever asked for it — the
+    // menu plate, Esc, actions.pause. Deciding it HERE off the state we came
+    // from is what stops the panel ever offering RESUME with nothing to
+    // resume, or CLOSE in the middle of a round.
+    if (from === 'playing') menuReturn = 'playing';
+    // The one panel, told which of its two faces to wear. Painted here rather
+    // than in showMenu() so every route into it agrees.
+    ui.paintMenu(menuReturn === 'playing');
+  }
   if (s === 'slots') ui.showSlots(loadSlots());
   if (s === 'levelclear') {
     const c = game.campaign;
@@ -266,19 +277,22 @@ function handleInput() {
     case 'powers':
       if (pausePress) { audio.click(); setState('title'); } // Esc backs out
       break;
-    // Esc leaves the board by the same door its BACK button uses — see
-    // soundReturn. Split out of the group above because the others really do
-    // only ever hang off the title, and this one can now be opened from
-    // anywhere the corner speaker is, which is everywhere.
-    case 'sound':
-      if (pausePress) { audio.click(); setState(soundReturn); }
-      break;
+
     case 'playing':
       if (pausePress) { audio.click(); setState('paused'); }
       else if (restartPress) restartLevel();
       break;
     case 'paused':
-      if (pausePress || startPress) { audio.click(); setState('playing'); ui.showScreen(null); }
+      // Esc leaves by the same door CLOSE uses. When the menu was opened
+      // mid-run that door is the run — which is what pause has always meant —
+      // and when it was opened from a menu screen it is that screen. Without
+      // menuReturn this dropped a player who opened SETTINGS from the title
+      // straight into a run they never started.
+      if (pausePress || startPress) {
+        audio.click();
+        if (menuReturn === 'playing') { setState('playing'); ui.showScreen(null); }
+        else setState(menuReturn);
+      }
       else if (restartPress) restartLevel();
       break;
     case 'levelclear':
@@ -330,10 +344,10 @@ ui.init(game, {
   restart: () => { audio.unlock(); restartLevel(); },
   resume: () => { if (game.state === 'paused') { setState('playing'); ui.showScreen(null); } },
   quit: () => { clearWorld(); setState('title'); }, // autosaves happen at level clear only
-  pause: () => {
-    if (game.state === 'playing') setState('paused');
-    else if (game.state === 'paused') { setState('playing'); ui.showScreen(null); }
-  },
+  // `pause` as its own action went with the ⏸ plate that called it. The menu
+  // plate calls showMenu, which pauses on its way, and Esc is handled in the
+  // state machine — two callers where there were three, and one fewer place
+  // for "what does pause mean here" to be answered differently.
   mute: () => ui.setMuted(audio.toggleMute()),
   pickSlot: (i) => {
     audio.unlock();
@@ -347,31 +361,28 @@ ui.init(game, {
   confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
   showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
-  // The sound board is a door opened by the corner speaker, and since v1.8.2
-  // that speaker is on EVERY screen — so this may no longer insist on coming
-  // from the title. It used to, modelled on showPowers, and the moment the
-  // plate became permanent chrome that guard turned it into a button that
-  // silently did nothing on six screens out of eight, which is worse than not
-  // being there.
+  // THE MENU PLATE. One panel for everything that is not playing, opened from
+  // the same corner on every screen — so this may not insist on coming from
+  // anywhere in particular. An earlier version guarded on `state === 'title'`,
+  // and the moment the plate became permanent chrome that guard turned it into
+  // a button that silently did nothing on six screens out of eight, which is
+  // worse than not being there at all.
   //
-  // Where BACK goes is remembered rather than assumed, because "title" is only
-  // the right answer when the title is where you were. The one case that is
-  // deliberately not symmetric is mid-run: opening the board from `playing`
-  // comes back to `paused`, never to `playing`. setState already stops the
-  // simulation while any screen is up, so returning straight to a live run
-  // would drop the player back into a game that had been standing still with
-  // something aimed at them. The pause menu is the honest landing, and it has
-  // the board bolted in under RESUME anyway.
+  // Mid-run it IS the pause: there is a run to come back to, so the panel says
+  // PAUSED and carries RESUME and a way to abandon. Everywhere else those two
+  // would be lies, the panel says SETTINGS, and CLOSE is the way back out.
+  // ui.paintMenu() hides what does not apply; the levels and the way out are
+  // the same nodes either way.
   //
-  // It needs no ui.showSound(): showScreen already moves the one board node
-  // into this screen's slot the way it always moved it into the title's.
-  showSound: () => {
-    if (game.state === 'sound') return;
+  // Where CLOSE goes is remembered rather than assumed — "title" is only the
+  // right answer when the title is where you were.
+  showMenu: () => {
+    if (game.state === 'paused') return;
     audio.unlock();
-    soundReturn = game.state === 'playing' ? 'paused' : game.state;
-    setState('sound');
+    menuReturn = game.state;
+    setState('paused');
   },
-  backFromSound: () => setState(soundReturn),
+  closeMenu: () => setState(menuReturn === 'playing' ? 'playing' : menuReturn),
   backToTitle: () => setState('title'),
   // Tapping UPDATE READY is a promise the button has to keep. It used to post
   // SKIP_WAITING and rely entirely on `controllerchange` to reload — and when

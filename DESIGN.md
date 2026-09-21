@@ -159,13 +159,15 @@ synthesis for a new sound, add a piece and re-run the build.
   sums into mud when a sound repeats. Check both if you retune it.
 - `setBossMode` ducks: normal play runs the music at 80% of the slider, the end fight at 100%.
   One fixed track has no intensity layer, so level is the only honest lever.
-- The board has a screen of its own (`#screen-sound`, state `'sound'`, opened by the corner
-  speaker) and sits INLINE on the pause menu. `#sound-board` is a single node that
-  `ui.showScreen` moves between `#sound-slot` and `#pause-board`, which is what stops the
-  two from drifting apart and keeps the listeners attached once. It was bolted permanently
-  into the title screen until v1.8; the node and the move are unchanged, only where it is
-  shown from — two levels and a cutoff are set once, and hub CLAUDE.md §2 puts a control
-  like that behind a door rather than on the screen a player sees every time. Its controls
+- The board lives in THE MENU (`#screen-pause`, state `'paused'`), which is the one panel
+  behind the corner's ☰ plate and has no second home to drift from: `#sound-board` is a
+  single node that never moves. It was bolted into the title screen until v1.8, then had a
+  `#screen-sound` of its own until v1.9; both are gone. Two levels and a cutoff are set
+  once, and hub CLAUDE.md §2 puts a control like that behind a door rather than on the
+  screen a player sees every time. The panel wears two faces — `ui.paintMenu(inRun)` says
+  PAUSED and shows RESUME and QUIT mid-run, SETTINGS and CLOSE anywhere else — and
+  `main.js`'s `menuReturn` is what CLOSE and Esc both leave by, so they cannot disagree.
+  Its controls
   call `audio.unlock()` themselves, because the board may be the player's first touch of the
   game. The two rows are MUSIC and EFFECTS; the second said MACHINERY until v1.8 and the
   flavour moved to the line under the heading, because somebody hunting for a slider should

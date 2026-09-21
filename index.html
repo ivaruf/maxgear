@@ -56,8 +56,12 @@
          one, a 2-slot row the outer two); ui.init() fills them with canvases -->
     <div id="gate-legend" class="hidden"><span id="gl-left"></span><span id="gl-mid"></span><span id="gl-right"></span></div>
     <div id="stats-strip"></div>
-    <button id="mute-btn" type="button" title="Mute (M)" aria-label="Mute">🔊</button>
-    <button id="pause-btn" type="button" title="Pause (Esc)" aria-label="Pause">⏸</button>
+    <!-- MUTE AND PAUSE USED TO BE HERE. They are in #corner-tools now, with
+         the two plates that were already permanent, because four brass circles
+         in one corner was two too many and two of them were speakers: one
+         muted, one opened a mixer, and side by side they read as the same
+         control drawn twice. Pause became the menu plate — a menu is what it
+         opened — and mute went up as-is. Esc and M are unchanged. -->
   </div>
 
   <!-- Screens -->
@@ -101,90 +105,69 @@
     <span id="game-version" class="version-tag"></span>
   </div>
 
+  <!-- ==================== THE MENU ====================
+       ONE PANEL, AND ITS CONTENTS ADAPT. There were two until v1.9 — a PAUSED
+       screen with the board bolted under RESUME, and a SOUND BOARD screen with
+       the same board and a BACK — which meant one node being lent between two
+       homes, two headings for one thing, and a corner carrying a door to each.
+
+       Now the menu plate opens this, wherever you are, and what is in it
+       answers where you were:
+
+         mid-run    PAUSED, RESUME, the two levels, QUIT TO TITLE, the way out
+         elsewhere  SETTINGS, the two levels, the way out
+
+       js/ui.js paints the difference by hiding what does not apply, so nothing
+       here is built twice and the levels are the same two sliders in both
+       cases — which is the point: there is only one of them now, in one place,
+       and no lending. -->
   <div id="screen-pause" class="screen hidden">
-    <h2>PAUSED</h2>
+    <h2 id="menu-title">PAUSED</h2>
+    <!-- Only when there is a run to go back to. -->
     <button class="big-btn" id="btn-resume" type="button">RESUME</button>
-    <!-- the sound board moves in here while the game is paused -->
-    <div id="pause-board" class="board-slot"></div>
-    <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
-    <!-- Quitting the GAME, which is not quitting to the title. Same label as
-         the one on the title screen, from the same place, so the two menus
-         cannot drift apart. -->
-    <button class="small-btn exit-btn hidden" id="btn-exit-pause" type="button"></button>
-  </div>
+    <div id="sound-board">
+      <!-- Names the two dials, which the heading above no longer can: it says
+           PAUSED or SETTINGS depending on where the menu was opened from, and
+           neither of those is a word for a mixer. -->
+      <span class="board-cap">SOUND BOARD</span>
 
-  <!-- ==================== THE SOUND BOARD, ON ITS OWN SCREEN ====================
-       The board used to be bolted into the title screen, permanently, above the
-       hint line. It is not there any more and this screen is where it went.
-
-       WHY IT MOVED: two levels and a cutoff are set once and then never touched
-       again, and hub CLAUDE.md §2 is blunt about where a control like that
-       belongs — behind a door, not on the screen a player sees every single
-       time they come back. fishtank made this exact move with its graphics
-       picker and is better for it. The corner speaker is that door.
-
-       THERE IS STILL ONLY ONE BOARD. This screen owns the markup at rest, and
-       ui.showScreen moves the one #sound-board node between #sound-slot here
-       and #pause-board on the pause menu, exactly as it moved it between the
-       title and the pause menu before. What changed is where it is shown from,
-       not how many of it there are — so the listeners are still attached once
-       and the two places can still never drift apart.
-
-       THE PAUSE MENU DID NOT CHANGE. Mid-run the board is still inline under
-       RESUME: you are already stopped and already in a menu there, so a second
-       door to open would be a door for its own sake.
-
-       A screen and not an overlay, because MAXGEAR already has this shape and
-       the player already knows it — the armoury is a heading, a thing, and a
-       way back. It is a real state in main.js too, which is what buys Esc
-       backing out of it for free. -->
-  <div id="screen-sound" class="screen hidden">
-    <h2>SOUND BOARD</h2>
-    <!-- Where the flavour went when the second dial became plain EFFECTS: this
-         line says what the row actually covers, in MAXGEAR's own words, without
-         being the thing a player has to decode to find their slider. -->
-    <p class="tagline">MUSIC is the band organ · EFFECTS is every gun, gate and boiler</p>
-    <!-- The board's home in the markup. showScreen lends it to #pause-board for
-         the length of a pause and puts it back here afterwards; it only ever
-         moves the node when it is not already where it belongs. -->
-    <div id="sound-slot" class="board-slot">
-      <div id="sound-board">
-        <!-- Redundant on this screen, where the h2 says it louder; CSS hides it
-             while the board is in #sound-slot. It is the board's only label on
-             the pause menu, so it cannot simply be deleted. -->
-        <span class="board-cap">SOUND BOARD</span>
-
-        <div class="dial-row">
-          <div class="dial-head">
-            <label class="dial-label" for="vol-music">MUSIC</label>
-            <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
-          </div>
-          <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
+      <div class="dial-row">
+        <div class="dial-head">
+          <label class="dial-label" for="vol-music">MUSIC</label>
+          <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
         </div>
+        <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
+      </div>
 
-        <div class="dial-row">
-          <div class="dial-head">
-            <!-- EFFECTS, not MACHINERY, which is what this row said until v1.8.
-                 Six of the seven hub games label it EFFECTS and the odd ones out
-                 were renamed for the same reason: somebody reaching for a volume
-                 is not reading for flavour, they are looking for which of two
-                 sliders is theirs, and a word that has to be decoded costs them
-                 that. The id stays vol-sfx. MAXGEAR's own voice went into the
-                 line under the heading, where it can say what the row covers
-                 without being the thing you have to read to find it. -->
-            <label class="dial-label" for="vol-sfx">EFFECTS</label>
-            <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
-          </div>
-          <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
+      <div class="dial-row">
+        <div class="dial-head">
+          <!-- EFFECTS, not MACHINERY, which is what this row said until v1.8.
+               Six of the seven hub games label it EFFECTS and the odd ones out
+               were renamed for the same reason: somebody reaching for a volume
+               is not reading for flavour, they are looking for which of two
+               sliders is theirs, and a word that has to be decoded costs them
+               that. The id stays vol-sfx. MAXGEAR's own voice went into the
+               line under the heading, where it can say what the row covers
+               without being the thing you have to read to find it. -->
+          <label class="dial-label" for="vol-sfx">EFFECTS</label>
+          <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
         </div>
+        <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
+      </div>
 
-        <div class="board-master">
-          <span class="dial-label">MASTER</span>
-          <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
-        </div>
+      <div class="board-master">
+        <span class="dial-label">MASTER</span>
+        <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
       </div>
     </div>
-    <button class="small-btn" id="btn-sound-back" type="button">BACK</button>
+    <!-- Likewise: nothing to abandon when no run is going. -->
+    <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
+    <!-- The way back out of the menu when it is not a pause — there is no
+         RESUME to serve as one. -->
+    <button class="small-btn" id="btn-menu-close" type="button">CLOSE</button>
+    <!-- Leaving the GAME, which is not leaving to the title. Same label as the
+         title screen's, from the same place, so the two cannot drift apart. -->
+    <button class="small-btn exit-btn hidden" id="btn-exit-pause" type="button"></button>
   </div>
 
   <div id="screen-powers" class="screen hidden">
@@ -280,11 +263,15 @@
        place on the title, in the slot list, on the armoury, mid-run and on the
        pause menu. One position, always, is the whole rule.
 
-       The HUD's own MUTE and PAUSE moved left to make room rather than being
-       removed: they answer different questions (silence this instant; stop the
-       run) and they only exist mid-run, whereas these two are always here.
-       Reading in from the corner: fullscreen, sound, mute, pause — the
-       permanent pair outermost, the run's own pair inboard.
+       THREE PLATES, NOT FOUR. The HUD's own MUTE and PAUSE moved up here in
+       v1.9 and the set was reduced in the same breath, because four brass
+       circles in one corner was two too many and two of the four were
+       speakers — one muting, one opening a mixer — which read as the same
+       control drawn twice. Pause became the MENU plate, since a menu is what
+       it opened; the mixer stopped being its own door and moved inside that
+       menu; mute stayed exactly as it was, because one press for silence when
+       somebody walks into the room is a different question from the mix.
+       Reading in from the corner: fullscreen, mute, menu.
 
        Clicks inside here are stopped in js/ui.js. The title screen starts a
        run on a click ANYWHERE and the cluster no longer sits inside it, so
@@ -296,16 +283,38 @@
        leaving it to ui.js would both flash and make the corner depend on a
        boot that it exists to outlive. -->
   <div id="corner-tools">
-    <!-- The speaker OPENS the sound board; it does not switch anything off,
-         so it carries no slash. The HUD's mute plate is the one that does
-         that, and the board's own MASTER lever is the other. -->
-    <button id="btn-soundboard" class="corner-btn" type="button"
-            title="Sound board" aria-label="Sound board">
+    <!-- THE MENU. This plate was ⏸ in the HUD until v1.9, and it is the same
+         button doing the same job under an honest name: what pause opened was
+         a menu, and the menu is now the one place everything that is not
+         playing lives — resume, the two levels, the way to the title and the
+         way out. Mid-run it stops the game first; anywhere else there is
+         nothing to stop and it simply opens.
+         Three bars, not a gear: a gear says settings, and this holds more than
+         settings. -->
+    <button id="btn-menu" class="corner-btn" type="button"
+            title="Menu (Esc)" aria-label="Menu">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <!-- MUTE, and it is a toggle rather than a door: one press for silence
+         when someone walks in, no menu in the way. The levels behind the menu
+         move independently of it, exactly as fishtank's pill has always
+         worked — muting does not lose the mix you set.
+         It was an emoji (🔊/🔇) in the HUD, which is why it never looked like
+         the brass it sat beside. Drawn now, and the slash is swapped in off
+         aria-pressed by the same CSS trick the fullscreen plate uses, so the
+         picture and the label cannot drift. -->
+    <button id="btn-mute" class="corner-btn" type="button" aria-pressed="false"
+            title="Mute (M)" aria-label="Mute">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M11 5 6 9H3v6h3l5 4Z" fill="none" stroke="currentColor"
               stroke-width="1.9" stroke-linejoin="round"/>
-        <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none"
-              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path class="ico-waves" d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"
+              fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+        <path class="ico-slash" d="m15.5 9.5 6 5m0-5-6 5" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
     <!-- HIDDEN until js/screen.js has confirmed this browser has element

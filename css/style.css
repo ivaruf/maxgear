@@ -454,30 +454,12 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   100% { transform: scale(1); }
 }
 
-/* ---- HUD buttons (>=40px touch targets): brass pushbuttons ---- */
-#mute-btn, #pause-btn {
-  position: absolute;
-  z-index: 20; /* stays clickable above the pause overlay (.screen is z-index 10) */
-  top: calc(var(--safe-t) + 38px);
-  width: 40px; height: 40px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(circle at 50% 30%, #e0ac53, #a06f27 62%, #5e3f16);
-  border: 1px solid rgba(255, 236, 196, 0.4);
-  color: #2a1c06; font-size: 16px; line-height: 1;
-  box-shadow: inset 0 1px 0 rgba(255, 246, 218, 0.65), inset 0 -3px 6px rgba(70, 44, 12, 0.6), 0 2px 7px rgba(0, 0, 0, 0.6);
-  cursor: pointer; pointer-events: auto;
-}
-#mute-btn:active, #pause-btn:active {
-  transform: scale(0.92);
-  background: radial-gradient(circle at 50% 30%, #b8873c, #7a5219 65%, #472f10);
-}
-/* Inboard of #corner-tools, which owns the corner itself now and is 92px wide
-   (two 42px plates and the 8px between them) starting 12px in. These two are
-   the RUN's controls and only exist while one is going; the pair outside them
-   is the page's and is always there. Reading in from the edge: fullscreen,
-   sound, mute, pause. */
-#mute-btn { right: calc(112px + var(--safe-r)); }
-#pause-btn { right: calc(158px + var(--safe-r)); }
+/* THE HUD'S OWN PUSHBUTTONS ARE GONE. #mute-btn and #pause-btn were two more
+   brass circles beside the two permanent ones, which made four in one corner —
+   and two of the four were speakers, one muting and one opening a mixer, which
+   read as the same control drawn twice. Pause is the menu plate in
+   #corner-tools now and mute is the plate beside it, so the recipe below the
+   cluster's own rules is the only copy of this styling that survives. */
 
 /* ================= Screens ================= */
 .screen {
@@ -1011,7 +993,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 
 /* ---- v1.7 the corner plates: the title screen's top right ----
    Two more of the HUD's brass pushbuttons, deliberately built from the same
-   recipe as #mute-btn and #pause-btn above rather than from a soft glass pill
+   recipe the HUD's own pushbuttons used rather than a soft glass pill
    borrowed off another game in the arcade: MAXGEAR's answer to "a small round
    control" already exists, and a player who has learnt it mid-run should not
    have to learn a second one on the menu. index.html says why the pair is on
@@ -1087,12 +1069,20 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 #btn-screen[aria-pressed="true"] .ico-out { display: none; }
 #btn-screen[aria-pressed="true"] .ico-in { display: inline; }
 
-/* The board's own engraved caption is the only thing naming it on the pause
-   menu, where it sits inline under RESUME with no heading above it. On its own
-   screen the <h2> says it far louder, so the cap would be the same two words
-   twice, forty pixels apart. Hidden by where the board is standing rather than
-   deleted — the node is one node and moves between both. */
-#sound-slot .board-cap { display: none; }
+/* The mute plate works the same way: one <svg> carrying a speaker, its waves
+   and a slash, with aria-pressed choosing. ui.setMuted() writes that attribute
+   and the accessible label together, so what is engraved and what is announced
+   cannot drift — which an emoji swapped into textContent could not manage
+   either way round, since no screen reader announces 🔇 as "muted". */
+#btn-mute .ico-slash { display: none; }
+#btn-mute[aria-pressed="true"] .ico-waves { display: none; }
+#btn-mute[aria-pressed="true"] .ico-slash { display: inline; }
+
+/* The cap names the two dials, and it always shows now. It used to be hidden
+   while the board stood on its own SOUND BOARD screen, where the <h2> said the
+   same two words forty pixels higher; that screen is gone — the board lives in
+   the one menu panel whose heading says PAUSED or SETTINGS, and neither of
+   those is a word for a mixer. */
 
 /* ---- End screens: brass-framed cards ---- */
 .end-card {
@@ -1284,8 +1274,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #score { font-size: 17px; }
   #score-wrap { min-width: 54px; padding: 1px 7px 2px; }
   .hud-label { font-size: 8px; letter-spacing: 1px; }
-  #mute-btn, #pause-btn { width: 40px; height: 40px; font-size: 15px; }
-  #pause-btn { right: calc(56px + var(--safe-r)); }
   #act-label { font-size: 9px; letter-spacing: 2px; padding: 3px 10px; max-width: 44vw; }
   #boss-wrap { top: calc(var(--safe-t) + 82px); }
   #boss-name { font-size: 11px; letter-spacing: 2px; }
@@ -1380,66 +1368,41 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   /* 6 above + 38 of plate + 8 of air. Every screen, because the plates are on
      every screen. */
   .screen { padding-top: calc(52px + var(--safe-t)); }
-  /* The HUD's own pair follows them up and in, so the four stay one row. */
-  #mute-btn, #pause-btn { top: calc(var(--safe-t) + 6px); }
-  #mute-btn { right: calc(98px + var(--safe-r)); }
-  #pause-btn { right: calc(142px + var(--safe-r)); }
   .corner-btn svg { width: 19px; height: 19px; }
   .logo-rule { width: min(40vw, 260px); }
 
-  /* ---- Sound: the heading and the way out left, the board right ----
-     Same two columns and the same reason. The board is the tallest thing here
-     by a factor of three, so standing the words beside it rather than above it
-     is what keeps BACK on screen on a 300px phone.
-     `sub` is the line explaining what each dial covers, and at this height the
-     max-height:560px block above has already hidden every .tagline — so the row
-     collapses to nothing here. It keeps an area anyway, because the rule this
-     whole block exists to serve is that a menu element without one lands in an
-     auto row the moment somebody shows it again. */
-  #screen-sound {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-    grid-template-areas:
-      "head  board"
-      "sub   board"
-      "back  board";
-    align-content: center;
-    align-content: safe center;
-    align-items: center;
-    justify-items: center;
-    gap: 10px 28px;
-  }
-  #screen-sound h2 { grid-area: head; }
-  #screen-sound .tagline { grid-area: sub; }
-  #sound-slot { grid-area: board; }
-  #btn-sound-back { grid-area: back; }
-  /* the board now lives in half the width, not 92% of it */
-  #sound-board { width: min(100%, 380px); }
+  /* ---- The menu: words left, the board right ----
+     One block now, where there used to be two nearly identical ones — a
+     #screen-sound grid and a #screen-pause grid, same two columns, same board
+     in the same place. The two screens are one screen, so this is one grid.
 
-  /* ---- Pause: same two columns, same board, same side ---- */
+     The board is the tallest thing here by a factor of three, so standing the
+     words beside it rather than above it is what keeps the last row on screen
+     on a 300px phone. Every row keeps an area even though RESUME, QUIT and
+     CLOSE are each hidden half the time: a menu element without one lands in
+     an auto row the moment somebody shows it again, which is the rule this
+     whole block exists to serve. */
   #screen-pause {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
     grid-template-areas:
       "h2     board"
       "resume board"
       "quit   board"
+      "close  board"
       "exit   board";
     align-content: center;
     align-content: safe center;
     align-items: center;
     justify-items: center;
     gap: 10px 28px;
-    /* The HUD's pause and mute pushbuttons stay live at the top right of this
-       overlay (z-index 20, see #mute-btn). On a 300px-tall phone the board
-       would rise under them, so the menu starts below that row instead. */
-    padding-top: calc(82px + var(--safe-t));
   }
   #screen-pause h2 { grid-area: h2; }
   #btn-resume { grid-area: resume; }
   #btn-quit { grid-area: quit; }
+  #btn-menu-close { grid-area: close; }
   #btn-exit-pause { grid-area: exit; }
-  #pause-board { grid-area: board; }
+  #screen-pause #sound-board { grid-area: board; width: min(100%, 380px); }
 
   /* ---- Armoury: heading and BACK share the top row; below it the card grid
      and the detail pane split the width and take ALL the remaining height,

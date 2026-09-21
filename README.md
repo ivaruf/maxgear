@@ -76,11 +76,11 @@ the build you entered it with.
 | Steer | `A`/`D` or `←`/`→`, or drag with the mouse | drag horizontally |
 | Shoot | automatic | automatic |
 | Start | `Space` / `Enter` / click / tap | tap |
-| Pause | `Esc` / `P` (or ⏸ button) | ⏸ button |
+| Menu / pause | `Esc` / `P` (or the ☰ plate, top right) | ☰ plate |
 | Restart level | `R` (any time) | tap after defeat |
-| Mute | `M` (or 🔊 button) | 🔊 button |
-| Music / effects levels | the SOUND BOARD — the 🔊 plate in the title screen's top-right corner, or inline on the pause menu | same |
-| Fullscreen | the ⛶ plate in the title screen's top-right corner (where the browser has it) | same |
+| Mute | `M` (or the 🔊 plate, top right) | 🔊 plate |
+| Music / effects levels | the SOUND BOARD, inside the menu behind the ☰ plate | same |
+| Fullscreen | the ⛶ plate, top right (where the browser has it) | same |
 
 **Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
 (LV1→LV5)** — crossing a gate grants levels; **shooting** a chargeable gate (pulsing ⌖) pumps
@@ -198,9 +198,9 @@ Every sound is a rendered file (v1.6 — the game synthesized all of it in WebAu
   a real audio device — the effects are recorded in realtime and are audible while it works.
   The script's header explains the mix calibration; read it before changing a piece.
 - **Levels**: two buses — MUSIC and EFFECTS — both remembered in `localStorage` under
-  `maxgear.audio.v1` along with mute. The player sets them on the SOUND BOARD, which has a
-  screen of its own behind the title screen's corner speaker and sits inline on the pause
-  menu: one node, moved between the two, so they can never drift apart. The end fight raises
+  `maxgear.audio.v1` along with mute. The player sets them on the SOUND BOARD, inside the
+  one menu panel behind the corner's ☰ plate — one node, one home, nothing to keep in
+  step. The end fight raises
   the music by un-ducking it: with a single fixed track, level is the only intensity lever
   there is.
 - A file that fails to load warns once to the console and plays nothing; the game never
