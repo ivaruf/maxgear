@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.8.0'; // the corner opens the sound board on a screen of its own; fullscreen plate; plain words on every way out
+const VERSION = 'v1.8.1'; // one width for the title stack, and no way out offered to a tab that never came from the arcade
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

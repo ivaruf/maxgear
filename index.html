@@ -68,16 +68,35 @@
       <p class="tagline">The ad was fake. This one is real.</p>
     </div>
 
-    <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
-    <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
-    <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;UPDATE READY</button>
+    <!-- ONE COLUMN, ONE WIDTH. These sized themselves to their own text until
+         v1.8.1, so START RUN, THE ARMOURY and the way out came out three
+         different widths down the middle of the screen and read as three
+         unrelated things rather than one stack. A one-column grid makes every
+         cell as wide as the widest of them, which is the hub rule about a
+         group of equals looking equal — and it does it without a magic number
+         anybody has to keep in step with the longest label.
 
-    <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
-    <!-- Leaving the game itself. Hidden until ui.js knows what it can honestly
-         offer, and LOAD-BEARING that it stops the click: this screen starts a
-         run on a click anywhere, so quitting from here would otherwise launch
-         the game on its way out. See ../arcade/exit.js. -->
-    <button class="small-btn exit-btn hidden" id="btn-exit-title" type="button"></button>
+         Equal size is not equal weight: START RUN keeps its brass gradient
+         beside two darker plates in exactly the same box, so the hierarchy is
+         carried by colour rather than by one button being bigger.
+
+         The hint is INSIDE the group on purpose. It is the only way it can
+         share the column, and it keeps the order the screen always had —
+         START, ARMOURY, the controls line, then the way out. -->
+    <div class="title-actions">
+      <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
+      <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
+      <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;UPDATE READY</button>
+
+      <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
+      <!-- Leaving the game itself. Hidden until ui.js knows there is anywhere
+           to go — a launcher behind us, or an installed window that can really
+           close; in a plain tab there is no plate at all. LOAD-BEARING that it
+           stops the click: this screen starts a run on a click anywhere, so
+           quitting from here would otherwise launch the game on its way out.
+           See ../arcade/exit.js. -->
+      <button class="small-btn exit-btn hidden" id="btn-exit-title" type="button"></button>
+    </div>
 
     <!-- ==================== THE CORNER PLATES ====================
          Two more of the same brass pushbuttons the HUD pins under the score

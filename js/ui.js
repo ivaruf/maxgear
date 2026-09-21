@@ -685,7 +685,15 @@ export const ui = {
      * is why the sound board stops its clicks too. Leaving the game must not
      * launch one on the way out. */
     const exit = window.ArcadeExit;
-    if (exit) {
+    /* `offers()` and not merely `exit` — the object turning up only means the
+     * arcade's file loaded, which it does for anyone who opened this game at
+     * its own address. A person who typed that address, or followed a link,
+     * did not come from the arcade and should not be handed a door "back" to
+     * somewhere they have never been; their browser's own back button already
+     * knows where they came from. So the plate appears when a launcher is
+     * behind us, or when we are an installed window that can genuinely close,
+     * and in a plain tab there is simply no plate. See ../arcade/exit.js. */
+    if (exit && exit.offers && exit.offers()) {
       /* Plain words, not MAXGEAR's. A way out is the one control on the menu
        * that must mean the same thing in every game in the hub, so it says
        * where it goes and nothing more — the case and the ◂ / ✕ are typography

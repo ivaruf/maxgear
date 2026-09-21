@@ -1031,6 +1031,22 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
    it from — and pressing it would do precisely nothing. */
 #corner-tools .corner-btn[hidden] { display: none; }
 
+/* ---- The title's one column ----
+   A single implicit grid column, so every cell comes out as wide as the widest
+   of them and the stack lines up without anybody maintaining a magic width
+   against the longest label. START RUN, THE ARMOURY, the controls line and the
+   way out used to size themselves to their own text, which read as four
+   unrelated things stacked up rather than one menu.
+   The container is a flex item in a centred column, so it is still only as
+   wide as its own widest child — this aligns the stack, it does not stretch
+   it across the screen. */
+.title-actions {
+  display: grid;
+  gap: 12px;
+  justify-items: stretch;
+  max-width: 92vw;
+}
+
 .corner-btn {
   width: 42px; height: 42px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -1322,6 +1338,13 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
     gap: 8px 28px;
   }
   #screen-title .logo { grid-area: logo; }
+  /* The portrait stack's wrapper gets out of the way entirely. `display:
+     contents` hands its four children straight back to #screen-title, so
+     every grid-area below addresses the button itself exactly as it did
+     before the wrapper existed and this whole block needed no other change.
+     It is also why the wrapper may never carry a border, a background or a
+     padding of its own — `contents` would throw them away. */
+  .title-actions { display: contents; }
   #btn-start { grid-area: start; }
   #btn-powers { grid-area: powers; }
   #btn-update { grid-area: update; }
