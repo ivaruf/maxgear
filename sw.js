@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.1'; // the HUD row reserves the corner, so score and progress stop running under the plates
+const VERSION = 'v1.9.2'; // groups line up: the HUD stat plates share an edge, and FINAL BUILD is one table
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

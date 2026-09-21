@@ -261,8 +261,16 @@ function stripHTML(p, list, bump) {
 }
 
 // End-screen "FINAL BUILD": a numeric CORE line, then OFFENSE / DEFENCE rows.
+// The chips get a wrapper of their own so the three groups can share two
+// columns — every caption right-aligned in the first, every run of chips
+// starting at the same x in the second. Without it the caption and the chips
+// are siblings, and `display: contents` on the group would hand each chip
+// separately to the grid instead of the run as one cell.
 function groupHTML(cap, inner) {
-  return inner ? `<div class="build-grp"><span class="grp-cap">${cap}</span>${inner}</div>` : '';
+  return inner
+    ? `<div class="build-grp"><span class="grp-cap">${cap}</span>` +
+      `<div class="grp-chips">${inner}</div></div>`
+    : '';
 }
 
 function trackGroup(p, cap, keys, px) {
