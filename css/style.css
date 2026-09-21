@@ -471,8 +471,13 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   transform: scale(0.92);
   background: radial-gradient(circle at 50% 30%, #b8873c, #7a5219 65%, #472f10);
 }
-#mute-btn { right: calc(12px + var(--safe-r)); }
-#pause-btn { right: calc(58px + var(--safe-r)); }
+/* Inboard of #corner-tools, which owns the corner itself now and is 92px wide
+   (two 42px plates and the 8px between them) starting 12px in. These two are
+   the RUN's controls and only exist while one is going; the pair outside them
+   is the page's and is always there. Reading in from the edge: fullscreen,
+   sound, mute, pause. */
+#mute-btn { right: calc(112px + var(--safe-r)); }
+#pause-btn { right: calc(158px + var(--safe-r)); }
 
 /* ================= Screens ================= */
 .screen {
@@ -1014,15 +1019,21 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
    42px, so a thumb on a tablet has somewhere to land, and both insets are
    respected so the pair clears a notch on a phone held either way up. */
 #corner-tools {
-  position: absolute;
-  top: calc(12px + var(--safe-t));
+  /* FIXED, and a sibling of the screens rather than a child of one, because
+     this pair never goes anywhere: same two plates in the same place on the
+     title, in the slot list, on the armoury, mid-run and on the pause menu.
+     `absolute` inside #screen-title is what used to make them a title-screen
+     ornament that vanished the moment you went anywhere. */
+  position: fixed;
+  /* The same top as the HUD's plates, so the four read as one row mid-run
+     instead of two rows that happen to share an edge. */
+  top: calc(var(--safe-t) + 38px);
   right: calc(12px + var(--safe-r));
   display: flex;
   gap: 8px;
-  /* above the title screen's two turning gears, which are pseudo-elements with
-     no z-index of their own; below the HUD's plates at 20, which never share a
-     screen with these. */
-  z-index: 2;
+  /* Above the screens (10) AND above the HUD's plates (20): these outlive
+     both, so nothing either of them does may cover them. */
+  z-index: 30;
 }
 /* THE `hidden` ATTRIBUTE HAS TO WIN HERE, AND ON ITS OWN IT DOES NOT: the UA
    sheet's `[hidden] { display: none }` is a type-less rule and .corner-btn sets
@@ -1325,7 +1336,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      "logo   tools"
       "logo   start"
       "logo   powers"
       "logo   update"
@@ -1350,23 +1360,30 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #btn-update { grid-area: update; }
   #screen-title .hint { grid-area: hint; }
   #btn-exit-title { grid-area: exit; }
-  /* THE CORNER PLATES COME INTO THE GRID SIDEWAYS. Everywhere else they are
-     pinned to the corner and out of flow, which is right when there is room
-     above the menu; on a 300px-tall phone there is not, and an absolutely
-     positioned pair would simply sit on whatever is up there. So they become a
-     real cell instead — `position: static` and a grid area of their own, the
-     same by-area trick every other screen in this block uses. Sideways is
-     exactly where a fullscreen plate earns its keep, so it must not be the
-     thing that pushes the way out below the fold. */
+  /* THE CORNER PLATES STAY IN THE CORNER SIDEWAYS TOO. They used to become a
+     grid cell of their own here, which fitted the layout and broke the rule:
+     the pair must be in the same place on every screen and in every
+     orientation, or it is not a corner, it is a menu item that moves. So they
+     stay fixed, and every screen buys them the room instead — the padding-top
+     below is what keeps a centred column from running underneath them. That
+     costs about the same height the tools row used to, and it costs it on
+     every screen rather than on the title alone, which is the honest price of
+     a control that is always there. */
   #corner-tools {
-    position: static;
-    grid-area: tools;
-    justify-self: end;
-    align-self: center;
+    top: calc(var(--safe-t) + 6px);
+    right: calc(8px + var(--safe-r));
+    gap: 6px;
   }
   /* Thirty-eight, and no lower: this query only ever fires on a phone, where
      the pointer is still a finger. */
   .corner-btn { width: 38px; height: 38px; }
+  /* 6 above + 38 of plate + 8 of air. Every screen, because the plates are on
+     every screen. */
+  .screen { padding-top: calc(52px + var(--safe-t)); }
+  /* The HUD's own pair follows them up and in, so the four stay one row. */
+  #mute-btn, #pause-btn { top: calc(var(--safe-t) + 6px); }
+  #mute-btn { right: calc(98px + var(--safe-r)); }
+  #pause-btn { right: calc(142px + var(--safe-r)); }
   .corner-btn svg { width: 19px; height: 19px; }
   .logo-rule { width: min(40vw, 260px); }
 

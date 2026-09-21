@@ -726,7 +726,9 @@ export const ui = {
     // on a click anywhere, so the board no longer carries the stopPropagation
     // it needed while it was bolted into the title screen. The corner cluster
     // still does, because the corner is the one thing left sitting there.
-    tap($('btn-sound-back'), actions.backToTitle);
+    // Not backToTitle: the speaker is on every screen now, so the board can be
+    // opened from anywhere and BACK has to return there. main.js remembers.
+    tap($('btn-sound-back'), actions.backFromSound);
     tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
 
     // ---- corner plates (v1.7) -----------------------------------------------

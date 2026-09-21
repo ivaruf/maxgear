@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.8.1'; // one width for the title stack, and no way out offered to a tab that never came from the arcade
+const VERSION = 'v1.8.2'; // the corner is fixed to the page, not to the title screen: sound and fullscreen on every screen and mid-run
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

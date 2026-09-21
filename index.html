@@ -98,63 +98,6 @@
       <button class="small-btn exit-btn hidden" id="btn-exit-title" type="button"></button>
     </div>
 
-    <!-- ==================== THE CORNER PLATES ====================
-         Two more of the same brass pushbuttons the HUD pins under the score
-         strip: one that hands you the sound board, one that fills the screen.
-         Reusing that object rather than importing a frosted glass pill from
-         some other game in the arcade is the entire point — a player learns
-         "round brass thing in the corner" once and it means the same here.
-
-         THEY BELONG TO THE TITLE SCREEN AND TO NO OTHER, because MAXGEAR's top
-         right is already spoken for the moment a run exists: the score plate
-         takes the top of the strip and MUTE and PAUSE hang under its right end,
-         through the run AND through the pause menu, which is a run's menu and
-         keeps the HUD live on purpose. Two clusters cannot have one corner.
-         Little is lost by the trade — fullscreen is a document-level state that
-         survives every screen change, so it is set on the way in and still in
-         force when IRONCLAD goes down; and the pause menu does not need a door
-         to the sound board when it has the board itself bolted in under RESUME.
-
-         Clicks inside here are stopped in js/ui.js, exactly as the sound
-         board's are: this screen starts a run on a click ANYWHERE, so reaching
-         for the corner must never launch one on the way past.
-
-         NOT hidden to start with. The title screen is the first thing the page
-         paints and it is plain markup; leaving the cluster to ui.js's first
-         showScreen would both flash and make the corner depend on a boot that
-         is the very thing it is meant to outlive. -->
-    <div id="corner-tools">
-      <!-- The speaker OPENS the sound board; it does not switch anything off,
-           so it carries no slash. The HUD's mute plate is the one that does
-           that, and the board's own MASTER lever is the other. -->
-      <button id="btn-soundboard" class="corner-btn" type="button"
-              title="Sound board" aria-label="Sound board">
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path d="M11 5 6 9H3v6h3l5 4Z" fill="none" stroke="currentColor"
-                stroke-width="1.9" stroke-linejoin="round"/>
-          <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none"
-                stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
-        </svg>
-      </button>
-      <!-- HIDDEN until js/screen.js has confirmed this browser has element
-           fullscreen at all — Safari on iPhone does not, and a pushbutton that
-           does nothing when pressed is worse than no pushbutton. The corner
-           just shrinks to one plate there. -->
-      <button id="btn-screen" class="corner-btn" type="button" aria-pressed="false"
-              title="Fullscreen" aria-label="Fullscreen" hidden>
-        <!-- Four corners pushing out, and the same four pulled in for the
-             pressed state. CSS picks between them off aria-pressed, which
-             screen.js writes in the same breath as the label, so the engraving
-             and the words can never disagree. -->
-        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-          <path class="ico-out" d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          <path class="ico-in" d="M3 9h6V3m12 6h-6V3M9 15H3v6m12 0v-6h6" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    </div>
-
     <span id="game-version" class="version-tag"></span>
   </div>
 
@@ -320,6 +263,70 @@
       <p class="hint">R to restart</p>
     </div>
   </div>
+  <!-- ==================== THE CORNER PLATES ====================
+       Two more of the same brass pushbuttons the HUD pins under the score
+       strip: one that hands you the sound board, one that fills the screen.
+       Reusing that object rather than importing a frosted glass pill from
+       some other game in the arcade is the entire point — a player learns
+       "round brass thing in the corner" once and it means the same here.
+
+       OUTSIDE EVERY SCREEN, AND FIXED, BECAUSE IT NEVER GOES ANYWHERE. It
+       lived inside #screen-title until v1.8.2, which meant it existed on the
+       title and nowhere else: pick a save slot, open the armoury, start a run,
+       and the way to fill the screen was gone until you quit back. That is the
+       wrong bargain. Sound and fullscreen belong to the PAGE, not to whatever
+       the page is currently showing, so they sit here as a sibling of the
+       screens, `position: fixed`, above everything — and they are in the same
+       place on the title, in the slot list, on the armoury, mid-run and on the
+       pause menu. One position, always, is the whole rule.
+
+       The HUD's own MUTE and PAUSE moved left to make room rather than being
+       removed: they answer different questions (silence this instant; stop the
+       run) and they only exist mid-run, whereas these two are always here.
+       Reading in from the corner: fullscreen, sound, mute, pause — the
+       permanent pair outermost, the run's own pair inboard.
+
+       Clicks inside here are stopped in js/ui.js. The title screen starts a
+       run on a click ANYWHERE and the cluster no longer sits inside it, so
+       that stop is now belt and braces rather than the only thing preventing
+       it — but it also carries the brass clank every control here answers
+       with, so it stays.
+
+       NOT hidden to start with. It is plain markup in the first paint;
+       leaving it to ui.js would both flash and make the corner depend on a
+       boot that it exists to outlive. -->
+  <div id="corner-tools">
+    <!-- The speaker OPENS the sound board; it does not switch anything off,
+         so it carries no slash. The HUD's mute plate is the one that does
+         that, and the board's own MASTER lever is the other. -->
+    <button id="btn-soundboard" class="corner-btn" type="button"
+            title="Sound board" aria-label="Sound board">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M11 5 6 9H3v6h3l5 4Z" fill="none" stroke="currentColor"
+              stroke-width="1.9" stroke-linejoin="round"/>
+        <path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" fill="none"
+              stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <!-- HIDDEN until js/screen.js has confirmed this browser has element
+         fullscreen at all — Safari on iPhone does not, and a pushbutton that
+         does nothing when pressed is worse than no pushbutton. The corner
+         just shrinks to one plate there. -->
+    <button id="btn-screen" class="corner-btn" type="button" aria-pressed="false"
+            title="Fullscreen" aria-label="Fullscreen" hidden>
+      <!-- Four corners pushing out, and the same four pulled in for the
+           pressed state. CSS picks between them off aria-pressed, which
+           screen.js writes in the same breath as the label, so the engraving
+           and the words can never disagree. -->
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path class="ico-out" d="M9 3H3v6m12-6h6v6M3 15v6h6m12-6v6h-6" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="ico-in" d="M3 9h6V3m12 6h-6V3M9 15H3v6m12 0v-6h6" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+  </div>
+
 </div>
 <script type="module" src="js/main.js"></script>
 <!-- Its OWN module script, beside the game rather than inside it: whatever the

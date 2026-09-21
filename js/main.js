@@ -161,6 +161,12 @@ function restartLevel() {
   startLevel(c.levelIndex, c.levelStartTracks);
 }
 
+/* Where the sound board's BACK goes: whatever screen the corner speaker was
+   pressed from. Declared out here beside setState rather than inside the
+   actions object because the Esc path in the state machine reads it too, and
+   both have to agree or Esc and BACK would leave by different doors. */
+let soundReturn = 'title';
+
 function setState(s) {
   game.state = s;
   if (s === 'playing') input.clear(); // drops drag accumulated while paused
@@ -258,8 +264,14 @@ function handleInput() {
     case 'slots':
     case 'newgame':
     case 'powers':
-    case 'sound':
       if (pausePress) { audio.click(); setState('title'); } // Esc backs out
+      break;
+    // Esc leaves the board by the same door its BACK button uses — see
+    // soundReturn. Split out of the group above because the others really do
+    // only ever hang off the title, and this one can now be opened from
+    // anywhere the corner speaker is, which is everywhere.
+    case 'sound':
+      if (pausePress) { audio.click(); setState(soundReturn); }
       break;
     case 'playing':
       if (pausePress) { audio.click(); setState('paused'); }
@@ -335,13 +347,31 @@ ui.init(game, {
   confirmKeep: (keys) => confirmKeep(keys),
   backToSlots: () => setState('slots'),
   showPowers: () => { if (game.state === 'title') { audio.unlock(); setState('powers'); ui.showPowers(); } },
-  // v1.8: the sound board is a door off the title screen now, opened by the
-  // corner speaker. Modelled on showPowers down to the guard — you can only get
-  // there from the title, and unlocking on the way in is what lets the very
-  // first thing a player touches be a volume they can actually hear moving.
+  // The sound board is a door opened by the corner speaker, and since v1.8.2
+  // that speaker is on EVERY screen — so this may no longer insist on coming
+  // from the title. It used to, modelled on showPowers, and the moment the
+  // plate became permanent chrome that guard turned it into a button that
+  // silently did nothing on six screens out of eight, which is worse than not
+  // being there.
+  //
+  // Where BACK goes is remembered rather than assumed, because "title" is only
+  // the right answer when the title is where you were. The one case that is
+  // deliberately not symmetric is mid-run: opening the board from `playing`
+  // comes back to `paused`, never to `playing`. setState already stops the
+  // simulation while any screen is up, so returning straight to a live run
+  // would drop the player back into a game that had been standing still with
+  // something aimed at them. The pause menu is the honest landing, and it has
+  // the board bolted in under RESUME anyway.
+  //
   // It needs no ui.showSound(): showScreen already moves the one board node
   // into this screen's slot the way it always moved it into the title's.
-  showSound: () => { if (game.state === 'title') { audio.unlock(); setState('sound'); } },
+  showSound: () => {
+    if (game.state === 'sound') return;
+    audio.unlock();
+    soundReturn = game.state === 'playing' ? 'paused' : game.state;
+    setState('sound');
+  },
+  backFromSound: () => setState(soundReturn),
   backToTitle: () => setState('title'),
   applyUpdate: () => { if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' }); },
 });
