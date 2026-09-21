@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.8.2'; // the corner is fixed to the page, not to the title screen: sound and fullscreen on every screen and mid-run
+const VERSION = 'v1.8.3'; // serve only our own cache, and never lose the way out to a stale exit.js
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -107,8 +107,18 @@ self.addEventListener('fetch', (event) => {
   // Cache-first from the current versioned precache: every file in a session
   // comes from ONE deploy (no module version skew). New versions arrive as a
   // whole new cache via the install/activate flow above.
+  //
+  // `cacheName: CACHE` IS LOAD-BEARING AND WAS MISSING. Bare caches.match()
+  // searches EVERY cache on the origin, and every game in this hub shares one
+  // — so this was free to answer out of swirls' cache, or the arcade's. It
+  // did: ../arcade/exit.js is precached by the ARCADE, and the copy it holds
+  // is the copy this game got, which meant no amount of bumping VERSION here
+  // could ever refresh it. The game ran new code against an old exit.js, whose
+  // way out had a different shape, and the button vanished inside the arcade.
+  // Scoped to our own cache, a miss falls through to the network below and the
+  // answer is at worst fresh.
   event.respondWith(
-    caches.match(request, { ignoreSearch: true }).then((hit) => {
+    caches.match(request, { cacheName: CACHE, ignoreSearch: true }).then((hit) => {
       if (hit) return hit;
       return fetch(request).then((res) => {
         if (res.ok && res.type === 'basic') {
@@ -116,7 +126,12 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE).then((c) => c.put(request, copy));
         }
         return res;
-      }).catch(() => (request.mode === 'navigate' ? caches.match('./index.html') : undefined));
+      }).catch(() => (request.mode === 'navigate'
+        // Scoped for the same reason as the lookup above: offline, the shell we
+        // fall back to must be OUR shell and not whichever game on this origin
+        // happens to have an './index.html' in its cache.
+        ? caches.match('./index.html', { cacheName: CACHE })
+        : undefined));
     })
   );
 });

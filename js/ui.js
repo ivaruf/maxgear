@@ -693,7 +693,23 @@ export const ui = {
      * knows where they came from. So the plate appears when a launcher is
      * behind us, or when we are an installed window that can genuinely close,
      * and in a plain tab there is simply no plate. See ../arcade/exit.js. */
-    if (exit && exit.offers && exit.offers()) {
+    /* Whether to draw the plate at all, which is NOT the same question as
+     * whether quit() could do something. In a plain tab it could — the arcade
+     * is a URL and a navigation always works — but somebody who typed this
+     * game's address, or followed a link, did not come from the arcade and may
+     * never have heard of it. So: a launcher behind us, or an installed window
+     * that can genuinely close.
+     *
+     * ASKED THROUGH framed()/standalone() AND NOT THROUGH offers(), even
+     * though offers() exists and says exactly this. exit.js is another repo's
+     * file and the copy that answers may be OLDER than this one: it is fetched
+     * from /arcade/, and a service worker on this origin can hand back a
+     * version cached long before offers() was written. A guard built on the
+     * new name fails CLOSED when that happens — the way out simply disappears,
+     * inside the arcade, where it is the one control that matters. These two
+     * predicates have been in exit.js since it existed. */
+    const offers = exit && (exit.framed() || exit.standalone());
+    if (exit && offers) {
       /* Plain words, not MAXGEAR's. A way out is the one control on the menu
        * that must mean the same thing in every game in the hub, so it says
        * where it goes and nothing more — the case and the ◂ / ✕ are typography
