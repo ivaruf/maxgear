@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.3'; // the build table wraps inside its card instead of out through the side
+const VERSION = 'v1.9.4'; // the exit-fullscreen glyph is symmetric again — its bottom-left arm pointed the wrong way
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
