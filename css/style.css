@@ -48,6 +48,17 @@
   --gear-hot: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%23f0b429' stroke-width='4'><circle cx='32' cy='32' r='18'/><circle cx='32' cy='32' r='6'/><g stroke-width='7'><path d='M32 5v9M32 50v9M5 32h9M50 32h9M12.9 12.9l6.4 6.4M44.7 44.7l6.4 6.4M51.1 12.9l-6.4 6.4M19.3 44.7l-6.4 6.4'/></g></svg>");
   --gear-cyan: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' fill='none' stroke='%2335e0ff' stroke-width='5'><circle cx='32' cy='32' r='17'/><circle cx='32' cy='32' r='5'/><g stroke-width='9'><path d='M32 4v10M32 50v10M4 32h10M50 32h10M12 12l7 7M45 45l7 7M52 12l-7 7M19 45l-7 7'/></g></svg>");
 
+  /* THE CORNER CLUSTER, MEASURED ONCE. The HUD's top row has to know how much
+     of its own right edge the plates are standing on, and the landscape and
+     small-phone passes shrink them — so the width is derived from the plate
+     size and the gap rather than written out as a number in two places that
+     can drift. Anything that reserves room for the cluster reserves
+     --corner-w, and it is right by construction. */
+  --corner-inset: 12px;
+  --corner-plate: 42px;
+  --corner-gap: 8px;
+  --corner-w: calc(var(--corner-plate) * 3 + var(--corner-gap) * 2);
+
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
@@ -86,7 +97,15 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: calc(10px + var(--safe-t)) calc(14px + var(--safe-r)) 0 calc(14px + var(--safe-l));
+  /* The right padding RESERVES THE CORNER. The three plates are fixed page
+     chrome standing over this row, so the score plate and the progress rail
+     have to end before them — they were running underneath, which is what the
+     HUD looked like until v1.9.1. Everything here is derived from the cluster's
+     own tokens, so the narrow passes that shrink the plates shrink this too. */
+  padding: calc(10px + var(--safe-t))
+           calc(var(--corner-inset) * 2 + var(--corner-w) + var(--safe-r))
+           0
+           calc(14px + var(--safe-l));
 }
 
 /* ---- HP: boiler pressure gauge (brass bezel, green needle-fill unchanged) ---- */
@@ -1007,12 +1026,16 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
      `absolute` inside #screen-title is what used to make them a title-screen
      ornament that vanished the moment you went anywhere. */
   position: fixed;
-  /* The same top as the HUD's plates, so the four read as one row mid-run
-     instead of two rows that happen to share an edge. */
-  top: calc(var(--safe-t) + 38px);
-  right: calc(12px + var(--safe-r));
+  /* Level with the HUD's top row, not below it. It used to sit 38px down,
+     which put it across the bottom of the score plate and the right end of the
+     progress rail — the row starts at 10px, so anything lower than that lands
+     ON it. Aligned here, the two are one band: readouts running left to right,
+     then the three plates, and #hud-top's padding-right below keeps the gap
+     between them honest. */
+  top: calc(var(--safe-t) + var(--corner-inset) - 2px);
+  right: calc(var(--corner-inset) + var(--safe-r));
   display: flex;
-  gap: 8px;
+  gap: var(--corner-gap);
   /* Above the screens (10) AND above the HUD's plates (20): these outlive
      both, so nothing either of them does may cover them. */
   z-index: 30;
@@ -1041,7 +1064,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 
 .corner-btn {
-  width: 42px; height: 42px; border-radius: 50%;
+  width: var(--corner-plate); height: var(--corner-plate); border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   padding: 0;
   background: radial-gradient(circle at 50% 30%, #e0ac53, #a06f27 62%, #5e3f16);
@@ -1261,14 +1284,33 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 }
 
 @media (max-width: 600px) {
-  #hp-wrap { width: 118px; }
+  /* Smaller plates buy the row back the width they were costing it: the
+     reservation above is derived from these, so there is one number to change
+     and it is here. */
+  :root { --corner-plate: 36px; --corner-gap: 7px; --corner-inset: 10px; }
+  .corner-btn svg { width: 18px; height: 18px; }
+  #hp-wrap { width: 92px; }
+  /* The rail absorbs whatever is left once the plates, the bar and the score
+     have taken theirs, so from here down it has to be allowed to get genuinely
+     short rather than forcing the row to overflow. At 400px — the worst case
+     in this band — it comes out at about 60. */
+  #progress-wrap { min-width: 44px; }
   #upgrade-toast { font-size: 16px; padding: 8px 18px; }
   #boss-wrap { width: 84vw; }
 }
 
-/* Small phones */
-@media (max-width: 380px) {
-  #hud-top { gap: 8px; padding-left: calc(9px + var(--safe-l)); padding-right: calc(9px + var(--safe-r)); }
+/* Small phones. The breakpoint moved from 380 to 420 in v1.9.1: with the
+   corner reserved out of #hud-top, a 400px phone was 5px short of fitting the
+   bar, the rail and the score beside the plates, and 380 let it fall through
+   to the wider numbers. Checked by arithmetic at 601, 600, 420, 400, 360. */
+@media (max-width: 420px) {
+  :root { --corner-plate: 34px; --corner-gap: 6px; --corner-inset: 8px; }
+  .corner-btn svg { width: 17px; height: 17px; }
+  /* padding-right is NOT overridden here: it is the corner reservation and it
+     has already shrunk with the plates above. Only the left gutter and the gap
+     between the readouts give way. */
+  #hud-top { gap: 8px; padding-left: calc(9px + var(--safe-l)); }
+
   #hp-wrap { width: 92px; height: 17px; }
   #hp-text { font-size: 10px; line-height: 17px; }
   #score { font-size: 17px; }
@@ -1291,6 +1333,17 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   .build-row i { font-size: 11px; padding: 3px 8px; }
   #screen-title::before { width: 200px; height: 200px; }
   #screen-title::after { width: 240px; height: 240px; right: -80px; }
+}
+
+/* The narrowest phones still in the wild. Everything above fits a
+   360 comfortably and runs about 5px short between 341 and 350, so this band buys that back from
+   the three things that can spare it: the bar, the rail and the score plate.
+   Nothing here touches the plates — a finger is still the pointer. */
+@media (max-width: 350px) {
+  #hp-wrap { width: 80px; }
+  #hud-top { gap: 6px; }
+  #progress-wrap { min-width: 36px; }
+  #score-wrap { min-width: 48px; padding: 1px 6px 2px; }
 }
 
 /* Landscape phones: keep HUD out of the notch and the toast higher */
@@ -1357,18 +1410,16 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
      costs about the same height the tools row used to, and it costs it on
      every screen rather than on the title alone, which is the honest price of
      a control that is always there. */
-  #corner-tools {
-    top: calc(var(--safe-t) + 6px);
-    right: calc(8px + var(--safe-r));
-    gap: 6px;
-  }
   /* Thirty-eight, and no lower: this query only ever fires on a phone, where
-     the pointer is still a finger. */
-  .corner-btn { width: 38px; height: 38px; }
-  /* 6 above + 38 of plate + 8 of air. Every screen, because the plates are on
-     every screen. */
-  .screen { padding-top: calc(52px + var(--safe-t)); }
+     the pointer is still a finger. Set as tokens rather than as widths, so the
+     HUD row's reservation and the padding below both follow on their own. */
+  :root { --corner-plate: 38px; --corner-gap: 6px; --corner-inset: 8px; }
   .corner-btn svg { width: 19px; height: 19px; }
+  /* The inset, the plate and a little air. Every screen, because the plates
+     are on every screen. */
+  .screen {
+    padding-top: calc(var(--corner-inset) + var(--corner-plate) + 8px + var(--safe-t));
+  }
   .logo-rule { width: min(40vw, 260px); }
 
   /* ---- The menu: words left, the board right ----

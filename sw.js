@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.0'; // three plates in the corner: menu, mute, fullscreen — and one menu panel instead of two
+const VERSION = 'v1.9.1'; // the HUD row reserves the corner, so score and progress stop running under the plates
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
