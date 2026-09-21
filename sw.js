@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.2'; // groups line up: the HUD stat plates share an edge, and FINAL BUILD is one table
+const VERSION = 'v1.9.3'; // the build table wraps inside its card instead of out through the side
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

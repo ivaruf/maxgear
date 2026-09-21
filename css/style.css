@@ -1245,7 +1245,10 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   font-size: 9px; letter-spacing: 2px; color: rgba(226, 197, 140, 0.85);
 }
 
-.build { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+/* Full width so the rows below have something real to be a percentage OF:
+   nested shrink-to-fit columns would make `max-width: 100%` resolve to the
+   content's own width, which caps nothing. */
+.build { display: flex; flex-direction: column; align-items: center; gap: 7px; width: 100%; }
 .build-cap {
   font-family: var(--font-display);
   font-size: 9px; letter-spacing: 3px; font-weight: 800;
@@ -1261,11 +1264,21 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
      columns; the grid is centred as a whole, so the block still sits in the
      middle of the card. */
   display: grid;
-  grid-template-columns: max-content max-content;
-  justify-content: center;
+  /* The caption column takes what it needs; the chips column takes the rest
+     AND IS ALLOWED TO BE SMALLER THAN ITS CONTENT — that is what `minmax(0,
+     1fr)` buys over a second `max-content`, which sizes to the longest run of
+     chips and then cheerfully overflows the card carrying it. OFFENSE with
+     three tracks was doing exactly that: wider than CORE, and out through the
+     right edge of the panel. Bounded, the run wraps inside its column instead.
+     `max-width: 100%` rather than a pixel cap, so the block follows the card
+     it is in — 540px normally, 760px on a wide short screen — without a number
+     here that has to be kept in step with one over there. It is a max and not
+     a width so the table stays tight and centred while it fits, and only
+     spreads to the full card when a row has grown too long for that. */
+  max-width: 100%;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 7px 10px;
-  max-width: min(94vw, 500px);
 }
 .build-row .grp-chips {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
