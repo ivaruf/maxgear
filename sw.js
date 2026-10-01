@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.4'; // the exit-fullscreen glyph is symmetric again — its bottom-left arm pointed the wrong way
+const VERSION = 'v1.9.5'; // a tablet no longer thinks the game is a page of text — no selection, no long-press menu
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -45,6 +45,8 @@ const ASSETS = [
   // would never have arrived here by following imports. Listed by hand, because
   // a corner plate that only works online is not the kind of button it is.
   './js/screen.js',
+  // Classic, loaded by index.html directly, so no import reaches it either.
+  './js/touch-guard.js',
   './js/ui.js',
   './js/upgrades.js',
   './js/utils.js',

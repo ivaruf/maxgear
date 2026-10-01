@@ -82,6 +82,17 @@ html, body {
   text-rendering: optimizeSpeed;
 }
 
+/* The html/body block above is the CSS half of "a game is not a document"
+   (hub CLAUDE.md §2); js/touch-guard.js is the other half. Body keeps
+   touch-action: none rather than the hub's manipulation — nothing here
+   scrolls or pinches, and the ship is steered by a drag anywhere. A real text
+   field gets selection back so a typo can be fixed; there is none today. */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 #wrap { position: fixed; inset: 0; }
 
 #game { display: block; width: 100%; height: 100%; touch-action: none; }
