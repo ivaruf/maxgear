@@ -46,6 +46,7 @@ import {
   ENTRIES, applyUpgrade, previewSlot, slotLabel, isOffered, bestTrack,
 } from './upgrades.js';
 import { drawIcon, drawArrow } from './icons.js';
+import { t as tr } from './i18n.js';   // `t` is time in this file's painters
 
 // Back-compat alias: the roster is upgrades.js ENTRIES now. Nothing outside
 // this file imports UPGRADES any more (checked: level.js/ui.js use upgrades.js
@@ -279,7 +280,7 @@ export function applyGateSlot(game, gate, slot) {
   // Charged all the way out: the hazard is scrap. No penalty, no bad sting —
   // just the confirmation that the shooting paid off.
   if (isDefused(slot)) {
-    fx.textPop(game.player.x, game.player.z + 60, 'DEFUSED', DEFUSED_ACCENT);
+    fx.textPop(game.player.x, game.player.z + 60, () => tr('desc.defused'), DEFUSED_ACCENT);
     return;
   }
 

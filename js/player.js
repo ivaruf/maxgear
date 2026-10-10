@@ -41,6 +41,7 @@ import {
   createStyleSet, sameWeaponStats, snapshotWeaponStats, computeBulletStyle,
 } from './bulletStyle.js';
 import { trackLevel } from './upgrades.js';
+import { t as tr } from './i18n.js';   // `t` is time in this file's painters
 import { killEnemy } from './enemies.js';        // see CIRCULAR IMPORT above
 import { fx } from './effects.js';
 import { audio } from './audio.js';
@@ -271,7 +272,7 @@ export function damageAlly(game, ally, amount) {
     ally.hp = 0;
     ally.dead = true;
     fx.explosion(ally.x, ally.z, 46, '#2fb8d6');
-    fx.textPop(ally.x, ally.z + 20, 'ALLY DOWN', '#8fd8ff');
+    fx.textPop(ally.x, ally.z + 20, () => tr('pop.allyDown'), '#8fd8ff');
     audio.explode();
   }
 }
@@ -320,7 +321,7 @@ export function damagePlayer(game, amount, ignoreInvuln = false, opts = {}) {
     p.aegis--;
     p.aegisT = s.aegisCd;
     fx.explosion(p.x, p.z, 54, AEGIS_COL);      // cyan shatter ring
-    fx.textPop(p.x, p.z + 30, 'AEGIS', AEGIS_COL);
+    fx.textPop(p.x, p.z + 30, () => tr('pop.aegis'), AEGIS_COL);
     fx.shake(4, 0.2);
     audio.hit();
     if (s.aegisShock > 0) aegisShock(game, p, s.aegisShock);

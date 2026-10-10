@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="nb">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
@@ -7,6 +7,18 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>MAXGEAR — Gate Rush</title>
+<!-- The language, before anything is painted: Norwegian unless this player
+     has chosen English in any arcade game (arcade.lang.v1 is the hub's key,
+     not ours). js/i18n.js does the rest; this only keeps the first frame from
+     announcing itself in the wrong language. The markup below is written in
+     bokmål for the same reason. -->
+<script>
+  (function () {
+    var l = null;
+    try { l = localStorage.getItem('arcade.lang.v1'); } catch (e) {}
+    document.documentElement.lang = l === 'en' ? 'en' : 'nb';
+  })();
+</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="stylesheet" href="css/style.css">
@@ -40,13 +52,13 @@
         <div id="progress-marker">▲</div>
         <div id="progress-goal">⚑</div>
       </div>
-      <div id="score-wrap"><span id="score">0</span><span class="hud-label">SCORE</span></div>
+      <div id="score-wrap"><span id="score">0</span><span class="hud-label" data-i18n="hud.score">POENG</span></div>
     </div>
 
     <div id="act-label" class="hidden"></div>
 
     <div id="boss-wrap" class="hidden">
-      <span id="boss-name">IRONCLAD</span>
+      <span id="boss-name">JERNKOLOSSEN</span>
       <div id="boss-bar-outer">
         <div id="boss-bar"></div>
         <div id="boss-ticks"></div>
@@ -54,7 +66,7 @@
     </div>
 
     <div id="upgrade-toast" class="hidden"></div>
-    <div id="steer-hint" class="hidden"><b>DRAG</b> OR <b>A</b>/<b>D</b> TO STEER &nbsp;·&nbsp; FIRING IS AUTOMATIC</div>
+    <div id="steer-hint" class="hidden" data-i18n-html="hud.steer"><b>DRA</b> ELLER <b>A</b>/<b>D</b> FOR Å STYRE &nbsp;·&nbsp; DU SKYTER AUTOMATISK</div>
     <!-- one span per gate slot, left to right (a 1-slot row uses the middle
          one, a 2-slot row the outer two); ui.init() fills them with canvases -->
     <div id="gate-legend" class="hidden"><span id="gl-left"></span><span id="gl-mid"></span><span id="gl-right"></span></div>
@@ -72,7 +84,7 @@
     <div class="logo">
       <h1>MAX<span class="accent">GEAR</span></h1>
       <div class="logo-rule"></div>
-      <p class="tagline">The ad was fake. This one is real.</p>
+      <p class="tagline" data-i18n="title.tagline">Reklamen var falsk. Dette er ekte.</p>
     </div>
 
     <!-- ONE COLUMN, ONE WIDTH. These sized themselves to their own text until
@@ -91,11 +103,16 @@
          share the column, and it keeps the order the screen always had —
          START, ARMOURY, the controls line, then the way out. -->
     <div class="title-actions">
-      <button class="big-btn pulse" id="btn-start" type="button">▶ &nbsp;START RUN</button>
-      <button class="small-btn" id="btn-powers" type="button">⚙ &nbsp;THE ARMOURY — VIEW ALL POWERS</button>
-      <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;UPDATE READY</button>
+      <!-- PLAIN WORDS SINCE v1.10. These said START RUN and THE ARMOURY — VIEW
+           ALL POWERS: the hub's menus use one shared set of words now, in two
+           languages, so the way in is PLAY / SPILL and a screen is named for
+           what it is. MAXGEAR's voice stays in its brass and in the play. -->
+      <button class="big-btn pulse" id="btn-start" type="button" data-i18n="title.play">▶ &nbsp;SPILL</button>
+      <button class="small-btn" id="btn-powers" type="button" data-i18n="title.upgrades">⚙ &nbsp;OPPGRADERINGER</button>
+      <!-- No data-i18n: its words carry the waiting version, so ui.js paints it. -->
+      <button class="small-btn update-btn hidden" id="btn-update" type="button">⚙ &nbsp;NY VERSJON KLAR</button>
 
-      <p class="hint">Space / click / tap to start &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R restart &nbsp;·&nbsp; M mute</p>
+      <p class="hint" data-i18n="title.hint">Mellomrom / klikk / trykk for å starte &nbsp;·&nbsp; Esc pause &nbsp;·&nbsp; R start på nytt &nbsp;·&nbsp; M lyd av/på</p>
       <!-- Leaving the game itself. Hidden until ui.js knows there is anywhere
            to go — a launcher behind us, or an installed window that can really
            close; in a plain tab there is no plate at all. LOAD-BEARING that it
@@ -117,26 +134,31 @@
        Now the menu plate opens this, wherever you are, and what is in it
        answers where you were:
 
-         mid-run    PAUSED, RESUME, the two levels, QUIT TO TITLE, the way out
-         elsewhere  SETTINGS, the two levels, the way out
+         mid-run    PAUSE, FORTSETT, the board, AVSLUTT RUNDEN, the way out
+         elsewhere  INNSTILLINGER, the board, TILBAKE, the way out
+
+       The board carries the language row as well as the two levels, so the
+       SETTINGS face — one tap on the menu plate from the title screen — is
+       where a stranger who cannot read the Norwegian the game opened in finds
+       ENGLISH before a run has begun.
 
        js/ui.js paints the difference by hiding what does not apply, so nothing
        here is built twice and the levels are the same two sliders in both
        cases — which is the point: there is only one of them now, in one place,
        and no lending. -->
   <div id="screen-pause" class="screen hidden">
-    <h2 id="menu-title">PAUSED</h2>
+    <h2 id="menu-title">PAUSE</h2>
     <!-- Only when there is a run to go back to. -->
-    <button class="big-btn" id="btn-resume" type="button">RESUME</button>
+    <button class="big-btn" id="btn-resume" type="button" data-i18n="menu.resume">FORTSETT</button>
     <div id="sound-board">
       <!-- Names the two dials, which the heading above no longer can: it says
            PAUSED or SETTINGS depending on where the menu was opened from, and
            neither of those is a word for a mixer. -->
-      <span class="board-cap">SOUND BOARD</span>
+      <span class="board-cap" data-i18n="sound.cap">LYD</span>
 
       <div class="dial-row">
         <div class="dial-head">
-          <label class="dial-label" for="vol-music">MUSIC</label>
+          <label class="dial-label" for="vol-music" data-i18n="sound.music">MUSIKK</label>
           <output class="dial-val" id="vol-music-val" for="vol-music">50%</output>
         </div>
         <input type="range" id="vol-music" min="0" max="100" step="5" value="50">
@@ -152,36 +174,78 @@
                that. The id stays vol-sfx. MAXGEAR's own voice went into the
                line under the heading, where it can say what the row covers
                without being the thing you have to read to find it. -->
-          <label class="dial-label" for="vol-sfx">EFFECTS</label>
+          <label class="dial-label" for="vol-sfx" data-i18n="sound.sfx">EFFEKTER</label>
           <output class="dial-val" id="vol-sfx-val" for="vol-sfx">85%</output>
         </div>
         <input type="range" id="vol-sfx" min="0" max="100" step="5" value="85">
       </div>
 
+      <!-- ALL SOUND / ALL LYD, which said MASTER until v1.10: a word from a
+           mixing desk, where this row is simply every sound at once. -->
       <div class="board-master">
-        <span class="dial-label">MASTER</span>
-        <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;SOUND ON</button>
+        <span class="dial-label" data-i18n="sound.all">ALL LYD</span>
+        <button class="small-btn cutoff-btn" id="btn-cutoff" type="button" aria-pressed="false">🔊 &nbsp;LYD PÅ</button>
+      </div>
+
+      <!-- THE LANGUAGE ROW. On the same plate as the levels because this plate
+           is the menu's whole settings face, and one plate keeps the sideways
+           grid's right column one object rather than two. Two equal buttons,
+           Norsk first; each endonym is written in its own language whatever
+           the current one is, with lang= so a screen reader says it right.
+           The flags are the hub's drawings, copied from kitchens as they are —
+           never emoji. The Union Jack's clipPath ids are page-global, and this
+           is the only copy on the page; if the row is ever drawn twice, the
+           second copy needs ids of its own or its flag clips against this one. -->
+      <div class="board-lang">
+        <span class="dial-label" id="lang-cap" data-i18n="lang.cap">SPRÅK</span>
+        <div class="lang-seg" role="group" aria-labelledby="lang-cap">
+          <button class="small-btn lang-btn" type="button" data-lang="nb" lang="nb" aria-pressed="true">
+            <svg class="flag" viewBox="0 0 22 16" aria-hidden="true" focusable="false">
+              <rect width="22" height="16" fill="#ba0c2f"/>
+              <path d="M6 0h4v16H6zM0 6h22v4H0z" fill="#fff"/>
+              <path d="M7 0h2v16H7zM0 7h22v2H0z" fill="#00205b"/>
+            </svg>
+            <span>NORSK</span>
+          </button>
+          <button class="small-btn lang-btn" type="button" data-lang="en" lang="en" aria-pressed="false">
+            <svg class="flag" viewBox="0 0 60 30" aria-hidden="true" focusable="false">
+              <clipPath id="mg-uk-clip"><path d="M0 0v30h60V0z"/></clipPath>
+              <clipPath id="mg-uk-diag"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath>
+              <g clip-path="url(#mg-uk-clip)">
+                <path d="M0 0v30h60V0z" fill="#012169"/>
+                <path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/>
+                <path d="M0 0l60 30m0-30L0 30" clip-path="url(#mg-uk-diag)" stroke="#c8102e" stroke-width="4"/>
+                <path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/>
+                <path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/>
+              </g>
+            </svg>
+            <span>ENGLISH</span>
+          </button>
+        </div>
       </div>
     </div>
     <!-- Likewise: nothing to abandon when no run is going. -->
-    <button class="small-btn" id="btn-quit" type="button">QUIT TO TITLE</button>
+    <button class="small-btn" id="btn-quit" type="button" data-i18n="menu.quit">AVSLUTT RUNDEN</button>
     <!-- The way back out of the menu when it is not a pause — there is no
-         RESUME to serve as one. -->
-    <button class="small-btn" id="btn-menu-close" type="button">CLOSE</button>
+         RESUME to serve as one. BACK / TILBAKE, like every panel's own way
+         out in the hub; it said CLOSE until v1.10. -->
+    <button class="small-btn" id="btn-menu-close" type="button" data-i18n="menu.back">TILBAKE</button>
     <!-- Leaving the GAME, which is not leaving to the title. Same label as the
          title screen's, from the same place, so the two cannot drift apart. -->
     <button class="small-btn exit-btn hidden" id="btn-exit-pause" type="button"></button>
   </div>
 
   <div id="screen-powers" class="screen hidden">
-    <h2>THE ARMOURY</h2>
-    <p class="tagline">Every power in the campaign — click the pips to preview any level</p>
+    <!-- UPGRADES / OPPGRADERINGER, which was THE ARMOURY until v1.10: a menu
+         screen is named for what it is, never given a place name. -->
+    <h2 data-i18n="up.title">OPPGRADERINGER</h2>
+    <p class="tagline" data-i18n="up.tagline">Alle oppgraderingene i spillet — trykk på rutene for å se hvert nivå</p>
     <div id="pw-pick">
       <div id="pw-grid"></div>
       <div id="pw-detail">
         <canvas id="pw-preview" aria-hidden="true"></canvas>
         <h3 id="pw-dname"></h3>
-        <div id="pw-lvls" aria-label="Preview level"></div>
+        <div id="pw-lvls" role="group" aria-label="Vis nivå" data-i18n-label="up.previewLevel"></div>
         <p id="pw-dblurb"></p>
         <p id="pw-dtier" class="hint"></p>
       </div>
@@ -189,27 +253,27 @@
     <!-- Just BACK. A panel's own way out says what it does, not where the game
          keeps its front page — the armoury is a door off the title screen and
          the player has not forgotten walking through it. -->
-    <button class="small-btn" id="btn-powers-back" type="button">BACK</button>
+    <button class="small-btn" id="btn-powers-back" type="button" data-i18n="menu.back">TILBAKE</button>
   </div>
 
   <div id="screen-slots" class="screen hidden">
-    <h2>SELECT SAVE SLOT</h2>
+    <h2 data-i18n="slots.title">VELG LAGRING</h2>
     <div id="slot-list"></div>
-    <button class="small-btn" id="btn-slots-back" type="button">BACK</button>
+    <button class="small-btn" id="btn-slots-back" type="button" data-i18n="menu.back">TILBAKE</button>
   </div>
 
   <div id="screen-newgame" class="screen hidden">
-    <h2>SELECT DIFFICULTY</h2>
+    <h2 data-i18n="diff.title">HVOR VANSKELIG?</h2>
     <div id="diff-list"></div>
-    <button class="small-btn" id="btn-newgame-back" type="button">BACK</button>
+    <button class="small-btn" id="btn-newgame-back" type="button" data-i18n="menu.back">TILBAKE</button>
   </div>
 
   <div id="screen-levelclear" class="screen hidden">
     <div class="end-card party lc-card">
-      <h2 class="good" id="lc-heading">LEVEL CLEAR</h2>
+      <h2 class="good" id="lc-heading">NIVÅ KLART</h2>
       <p id="lc-sub" class="tagline"></p>
       <div id="lc-stats" class="end-stats"></div>
-      <p id="lc-note" class="keep-note">CHOOSE <b>2</b> UPGRADES TO KEEP — THE REST IS SCRAPPED</p>
+      <p id="lc-note" class="keep-note"></p>
       <div id="lc-pick">
         <div id="lc-grid"></div>
         <div id="lc-detail">
@@ -218,35 +282,35 @@
           <p id="lc-dblurb"></p>
         </div>
       </div>
-      <p class="hint" id="lc-saved">YOUR CHOICE IS SAVED WITH YOUR PROGRESS</p>
-      <button class="big-btn" id="btn-continue" type="button" disabled>CONTINUE →</button>
+      <p class="hint" id="lc-saved" data-i18n="lc.saved">VALGET DITT LAGRES SAMMEN MED FREMGANGEN</p>
+      <button class="big-btn" id="btn-continue" type="button" disabled data-i18n="lc.continue">FORTSETT →</button>
     </div>
   </div>
 
   <div id="screen-defeat" class="screen hidden">
     <div class="end-card somber">
-      <h2 class="bad">WRECKED</h2>
+      <h2 class="bad" data-i18n="end.wrecked">ØDELAGT</h2>
       <div id="defeat-stats" class="end-stats"></div>
       <div class="build">
-        <span class="build-cap">FINAL BUILD</span>
+        <span class="build-cap" data-i18n="end.build">UTSTYRET DITT</span>
         <div id="defeat-build" class="build-row"></div>
       </div>
-      <button class="big-btn" id="btn-retry" type="button">↻ &nbsp;TRY AGAIN</button>
-      <p class="hint">R to restart</p>
+      <button class="big-btn" id="btn-retry" type="button" data-i18n="end.retry">↻ &nbsp;START PÅ NYTT</button>
+      <p class="hint" data-i18n="end.hint">R: start på nytt</p>
     </div>
   </div>
 
   <div id="screen-victory" class="screen hidden">
     <div class="end-card party">
-      <h2 class="good">IRONCLAD DOWN</h2>
+      <h2 class="good" data-i18n="end.victory">JERNKOLOSSEN ER KNUST</h2>
       <p id="victory-sub" class="tagline hidden"></p>
       <div id="victory-stats" class="end-stats"></div>
       <div class="build">
-        <span class="build-cap">FINAL BUILD</span>
+        <span class="build-cap" data-i18n="end.build">UTSTYRET DITT</span>
         <div id="victory-build" class="build-row"></div>
       </div>
-      <button class="big-btn pulse" id="btn-again" type="button">↻ &nbsp;RUN IT BACK</button>
-      <p class="hint">R to restart</p>
+      <button class="big-btn pulse" id="btn-again" type="button" data-i18n="end.again">↻ &nbsp;SPILL IGJEN</button>
+      <p class="hint" data-i18n="end.hint">R: start på nytt</p>
     </div>
   </div>
   <!-- ==================== THE CORNER PLATES ====================
@@ -295,7 +359,7 @@
          Three bars, not a gear: a gear says settings, and this holds more than
          settings. -->
     <button id="btn-menu" class="corner-btn" type="button"
-            title="Menu (Esc)" aria-label="Menu">
+            title="Meny (Esc)" aria-label="Meny">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor"
               stroke-width="2" stroke-linecap="round"/>
@@ -310,7 +374,7 @@
          aria-pressed by the same CSS trick the fullscreen plate uses, so the
          picture and the label cannot drift. -->
     <button id="btn-mute" class="corner-btn" type="button" aria-pressed="false"
-            title="Mute (M)" aria-label="Mute">
+            title="Skru av lyden (M)" aria-label="Skru av lyden">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         <path d="M11 5 6 9H3v6h3l5 4Z" fill="none" stroke="currentColor"
               stroke-width="1.9" stroke-linejoin="round"/>
@@ -325,7 +389,7 @@
          does nothing when pressed is worse than no pushbutton. The corner
          just shrinks to one plate there. -->
     <button id="btn-screen" class="corner-btn" type="button" aria-pressed="false"
-            title="Fullscreen" aria-label="Fullscreen" hidden>
+            title="Fullskjerm" aria-label="Fullskjerm" hidden>
       <!-- Four corners pushing out, and the same four pulled in for the
            pressed state. CSS picks between them off aria-pressed, which
            screen.js writes in the same breath as the label, so the engraving

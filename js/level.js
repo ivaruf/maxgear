@@ -42,6 +42,7 @@ import { spawnGateRow } from './gates.js';
 import { spawnObstacle } from './obstacles.js';
 import { spawnPickup } from './pickups.js';
 import { ENTRIES, TRACK_ORDER, bestTrack, isMaxed, isOffered, trackLevel } from './upgrades.js';
+import { t } from './i18n.js';
 
 // ---- gate slot resolution ---------------------------------------------------
 // A gate row is 1-2 SLOTS; every slot resolves to { key, levels, levelCap },
@@ -339,12 +340,17 @@ function rollGateMods(seg, def) {
 // ---------------------------------------------------------------------------
 
 const DEFAULT_DEF = Object.freeze({
-  id: 4, name: 'THE IRONWORKS', length: 17000, tier: 3, end: 'ironclad',
+  id: 4, get name() { return t('level.4'); }, length: 17000, tier: 3, end: 'ironclad',
   enemyPool: 'all', gateRows: 7,
 });
 
 const TRADES = ['tradeScattergun', 'tradeGlassCannon', 'tradeOverpressure'];
-const ACT_FLAVOR = ['IGNITION', 'PRESSURE', 'OVERDRIVE'];
+// The act captions are FUNCTIONS, built once per level: ui.js compares them by
+// identity to know when the act changed, and calls them to get the words in
+// the current language, so a switch from the pause menu repaints the caption
+// without this file allocating a string every frame.
+const ACT_FLAVOR = ['act.0', 'act.1', 'act.2'];
+const actCaption = (id, i) => () => t('act.label', id, t(ACT_FLAVOR[i]));
 
 function resolvePool(def) {
   if (def.enemyPool !== 'all') return def.enemyPool.slice();
@@ -533,10 +539,10 @@ export function createLevel(def, difficulty, introduced = new Set()) {
     gateZs,
     nextAmbushZ: tutorialEnd + 1500,
     acts: [
-      [0, `L${def.id} · ${ACT_FLAVOR[0]}`],
-      [def.length * 0.38, `L${def.id} · ${ACT_FLAVOR[1]}`],
-      [def.length * 0.72, `L${def.id} · ${ACT_FLAVOR[2]}`],
-      [def.length - 260, def.end === 'ironclad' ? 'IRONCLAD' : 'FOREMAN'],
+      [0, actCaption(def.id, 0)],
+      [def.length * 0.38, actCaption(def.id, 1)],
+      [def.length * 0.72, actCaption(def.id, 2)],
+      [def.length - 260, def.end === 'ironclad' ? () => t('boss.ironclad') : () => t('boss.foreman')],
     ],
   };
 }

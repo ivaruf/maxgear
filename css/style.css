@@ -549,6 +549,14 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   font-weight: 900; letter-spacing: 4px; line-height: 1.1;
   text-rendering: optimizeLegibility;
 }
+/* Two headings are one long word in bokmål — INNSTILLINGER, OPPGRADERINGER —
+   and a word cannot wrap, so at the shared size they ran off a 360px phone.
+   They get a ceiling in vw as well: at 6.2vw fourteen Copperplate capitals
+   and their tracking fit any portrait phone, and above ~870px the ordinary
+   clamp is the smaller number again, so a tablet or desktop sees no change.
+   English shrinks with them on a phone, which keeps the panel the same shape
+   in both languages. */
+#menu-title, #screen-powers h2 { font-size: min(clamp(30px, 7vw, 54px), 6.2vw); }
 .accent { color: var(--brass-lt); }
 .good { color: var(--good); }
 .bad { color: var(--bad); }
@@ -967,6 +975,45 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   min-height: 36px; min-width: 148px;
   padding: 7px 14px; font-size: 12px; text-align: center;
 }
+/* ---- v1.10 the language row: SPRÅK / LANGUAGE ----
+   The last row on the board, ruled off like ALL SOUND above it and laid out
+   the same way — caption left, controls right — so the two rows read as one
+   plate. Two equal buttons (flex: 1 1 0, the hub's equal rule: Norsk and
+   English are alternatives, so neither may look like the lesser one), and the
+   chosen one is cast brass, the same metal as PLAY, while the other stays a
+   dark plate. When the caption and both buttons cannot share a line — a
+   narrow portrait phone, or ENGLISH's longer caption — the pair wraps under
+   the caption and keeps its right edge, rather than squeezing an endonym. */
+.board-lang {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 8px 12px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(201, 151, 59, 0.22);
+}
+.lang-seg {
+  display: flex; gap: 6px;
+  flex: 1 1 210px; max-width: 260px; margin-left: auto;
+}
+.lang-btn {
+  flex: 1 1 0; min-width: 0;
+  min-height: 36px; padding: 6px 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font-size: 12px; letter-spacing: 1px; white-space: nowrap;
+}
+.lang-btn .flag {
+  flex: none; width: 20px; height: 14px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.lang-btn[aria-pressed="true"] {
+  color: #2a1806;
+  text-shadow: 0 1px 0 rgba(255, 244, 214, 0.55);
+  background: linear-gradient(180deg, #ffeab5 0%, #f0b429 30%, #cb9a3d 70%, #94611e 100%);
+  border-color: #6d4715;
+  box-shadow: inset 0 1px 0 rgba(255, 250, 228, 0.8), 0 0 12px rgba(240, 180, 41, 0.3);
+}
+.lang-btn:focus-visible { outline: 2px solid rgba(53, 224, 255, 0.7); outline-offset: 2px; }
+
 /* pressed = muted: the lever is thrown and the plate reads cold */
 .cutoff-btn[aria-pressed="true"] {
   color: #eeb9a8;
@@ -1327,6 +1374,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   .screen { gap: 10px; justify-content: center; }
   .screen h1 { font-size: clamp(30px, 7.5vh, 54px); letter-spacing: 4px; }
   .screen h2 { font-size: clamp(22px, 6.5vh, 40px); }
+  #menu-title, #screen-powers h2 { font-size: min(clamp(22px, 6.5vh, 40px), 6.2vw); }
   .tagline { display: none; }
   .logo-rule { width: min(50vw, 260px); }
   .logo-rule::before { width: 17px; height: 17px; margin: -8.5px 0 0 -8.5px; }
@@ -1505,12 +1553,30 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
     justify-items: center;
     gap: 10px 28px;
   }
+  /* Half a sideways phone is ~240px; INNSTILLINGER at the short-screen h2
+     size is ~255. 3.2vw keeps it inside its column from 568px up. */
   #screen-pause h2 { grid-area: h2; }
+  #menu-title { font-size: min(clamp(22px, 6.5vh, 40px), 3.2vw); letter-spacing: 2.5px; }
   #btn-resume { grid-area: resume; }
   #btn-quit { grid-area: quit; }
   #btn-menu-close { grid-area: close; }
   #btn-exit-pause { grid-area: exit; }
   #screen-pause #sound-board { grid-area: board; width: min(100%, 380px); }
+  /* The language row made the board ~50px taller, which a sideways phone
+     does not have. It is bought back by standing MUSIC and EFFECTS side by
+     side — neonfox's fix for the same problem — so the plate is no taller
+     than it was before the row arrived. The captions shrink a little to
+     share a half-width cell with their readouts; the sliders are still
+     36px-tall touch targets. Everything else on the plate spans both
+     columns. */
+  #sound-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 14px;
+  }
+  .board-cap, .board-master, .board-lang { grid-column: 1 / -1; }
+  #sound-board .dial-head { gap: 6px; }
+  #sound-board .dial-row .dial-label { font-size: 12px; letter-spacing: 0.8px; }
 
   /* ---- Armoury: heading and BACK share the top row; below it the card grid
      and the detail pane split the width and take ALL the remaining height,

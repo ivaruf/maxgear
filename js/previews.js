@@ -7,6 +7,7 @@
 
 import { BASE_STATS } from './config.js';
 import { recomputeStats, TRACKS } from './upgrades.js';
+import { t as tr } from './i18n.js';   // `t` is time in this file's painters
 import { computeBulletStyle, ensureBulletSprites } from './bulletStyle.js';
 
 const TAU = Math.PI * 2;
@@ -403,7 +404,7 @@ const SCRIPTS = {
       const took = Math.round(base * (1 - env.stats.armor));
       num(x, W * 0.34, H * 0.4, `-${took}`, win(sp, 0.72, 1), env.stats.armor > 0 ? '#b9e3c4' : '#ffffff', 13);
     }
-    num(x, W * 0.7, H * 0.3, `HULL ${env.stats.maxHp}`, win(p, 0.1, 0.95), BRASS_HI, 11);
+    num(x, W * 0.7, H * 0.3, tr('pv.hull', env.stats.maxHp), win(p, 0.1, 0.95), BRASS_HI, 11);
   },
   aegis(x, W, H, p, t, env) {
     const cx = W * 0.32, cy = H * 0.55;
@@ -423,7 +424,7 @@ const SCRIPTS = {
       const px = W * 0.92 - sp / 0.66 * (W * 0.55);
       x.beginPath(); x.arc(px, cy, 4, 0, TAU); x.fill();
     } else {
-      num(x, cx, H * 0.34, 'BLOCKED', win(sp, 0.68, 1), CYAN, 12);
+      num(x, cx, H * 0.34, tr('pv.blocked'), win(sp, 0.68, 1), CYAN, 12);
     }
   },
   siphon(x, W, H, p, t, env) {

@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.9.5'; // a tablet no longer thinks the game is a page of text — no selection, no long-press menu
+const VERSION = 'v1.10.0'; // Norwegian first, English one tap away on the menu, and the menus say plain words
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -29,6 +29,7 @@ const ASSETS = [
   './js/effects.js',
   './js/enemies.js',
   './js/gates.js',
+  './js/i18n.js',
   './js/icons.js',
   './js/input.js',
   './js/level.js',

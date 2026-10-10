@@ -14,6 +14,7 @@ import { audio } from './audio.js';
 // module-evaluation time, so both import orders are safe.
 import { damagePlayer, siphonHeal } from './player.js';
 import { trackLevel } from './upgrades.js';
+import { t as tr } from './i18n.js';   // `t` is time in this file's painters
 import { spawnPickup } from './pickups.js';
 
 const TAU = Math.PI * 2;
@@ -96,7 +97,7 @@ export const ENEMY_TYPES = {
     // divisor baseline: main.js spawns it DPS-scaled (~55% of a boss fight).
     hp: 2200, speed: 110, damage: 30, radius: 40, score: 800,
     color: '#d98a2e', behavior: 'foreman', dropChance: 0,
-    isBoss: true, miniboss: true, name: 'FOREMAN',
+    isBoss: true, miniboss: true, get name() { return tr('boss.foreman'); },
     shotSpeed: 420, shotDamage: 11, shotColor: '#ffb060',
     phases: [ // hp halves -> phase index
       { holdZ: 600, strafe: 110, tint: '#d98a2e', fireEvery: 2.2, summonEvery: 7.0, slamEvery: 0 },
@@ -108,7 +109,7 @@ export const ENEMY_TYPES = {
     // hpScale computed from the player's ACTUAL dps (clamped 4k..45k) so the
     // fight lasts ~30s for any build; behaviors.boss adds a decay failsafe.
     hp: 3200, speed: 120, damage: 40, radius: 55, score: 1500,
-    color: '#b23bc9', behavior: 'boss', dropChance: 0, isBoss: true, name: 'IRONCLAD',
+    color: '#b23bc9', behavior: 'boss', dropChance: 0, isBoss: true, get name() { return tr('boss.ironclad'); },
     shotSpeed: 440, shotDamage: 12, shotColor: '#ff7ad9',
     // hp thirds -> phase index; every phase is a clean tuning block
     phases: [
@@ -515,7 +516,7 @@ const behaviors = {
       fx.shake(9, 0.5);
       fx.flash(ph2.tint, 0.25, 0.4);
       fx.explosion(e.x, e.z, e.radius * 1.4, ph2.tint);
-      fx.textPop(e.x, e.z + 30, 'FURIOUS!', ph2.tint);
+      fx.textPop(e.x, e.z + 30, () => tr('pop.furious'), ph2.tint);
       audio.bossRoar();
     }
     const ph = phases[e.bossPhase - 1];
@@ -590,7 +591,7 @@ function updateBossPhase(e, game) {
     fx.shake(12, 0.7);
     fx.flash(ph.tint, 0.32, 0.5);
     fx.explosion(e.x, e.z, e.radius * 1.6, ph.tint);
-    fx.textPop(e.x, e.z + 30, want === 3 ? 'ENRAGED!' : 'PHASE 2', ph.tint);
+    fx.textPop(e.x, e.z + 30, want === 3 ? () => tr('pop.enraged') : () => tr('pop.phase2'), ph.tint);
     audio.bossRoar();
   }
   return phases[e.bossPhase - 1];
@@ -808,7 +809,7 @@ export function interceptShot(game, e, p) {
     e.stagger = e.def.staggerTime ?? 0.5;
     e.flash = 0.12;
     fx.explosion(e.x, e.z, e.radius * 1.1, col);
-    fx.textPop(e.x, e.z + 30, 'SHIELD DOWN', col);
+    fx.textPop(e.x, e.z + 30, () => tr('pop.shieldDown'), col);
     fx.shake(5, 0.22);
     audio.explode();
   }

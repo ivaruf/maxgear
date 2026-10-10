@@ -59,9 +59,20 @@ function isFull() {
 // controls the way the game names them. Fullscreen is not part of the fiction —
 // it is a thing the browser does, it has one name everywhere, and "OPEN THE
 // THROTTLE" would leave a player guessing whether it changed the gearing.
+//
+// Its OWN two words per language, because this file imports nothing —
+// js/i18n.js included. It reads the language off <html lang>, which i18n.js
+// (and index.html's head script, before first paint) keep current, and
+// repaints on the hub's `arcade:lang` event below.
+const WORDS = {
+  nb: ['Fullskjerm', 'Avslutt fullskjerm'],
+  en: ['Fullscreen', 'Exit fullscreen'],
+};
+
 function paint() {
   const active = isFull();
-  const label = active ? 'Exit fullscreen' : 'Fullscreen';
+  const words = WORDS[document.documentElement.lang] || WORDS.nb;
+  const label = active ? words[1] : words[0];
   button.setAttribute('aria-pressed', String(active));
   button.setAttribute('aria-label', label);
   button.title = label;
@@ -86,4 +97,6 @@ if (button && request && exit) {
   // able to catch up from outside the click handler.
   document.addEventListener('fullscreenchange', paint);
   document.addEventListener('webkitfullscreenchange', paint);
+  // A language switch from the menu: same plate, new words.
+  document.addEventListener('arcade:lang', paint);
 }

@@ -24,6 +24,7 @@ import { audio } from './audio.js';
 import { ui } from './ui.js';
 import { DIFFICULTIES, levelDef, isFinalLevel, LEVELS } from './campaign.js';
 import { loadSlots, writeSlot, clearSlot, makeSave } from './saves.js';
+import { paintStatic } from './i18n.js';
 
 const canvas = document.getElementById('game');
 const input = createInput(canvas);
@@ -196,7 +197,9 @@ function setState(s) {
   if (s === 'victory') {
     ui.showEnd(game, true, {
       campaignDone: true,
-      difficulty: game.campaign ? game.campaign.difficulty.label : '',
+      // The entry, not its label: the label is a getter in the current
+      // language, and the victory screen may be repainted in the other one.
+      difficulty: game.campaign ? game.campaign.difficulty : null,
     });
     audio.win();
   }
@@ -407,6 +410,17 @@ ui.showScreen('title');
 // button and the sound board have to be painted from the stored state at boot
 // rather than assuming a fresh, unmuted session.
 ui.setMuted(audio.isMuted());
+
+// v1.10: two languages. The markup ships in bokmål; a player who chose English
+// (in this game or any other in the arcade — the key is shared) gets it
+// painted over before the first frame of the loop. After that a switch from
+// the menu's SPRÅK row arrives as `arcade:lang`, and everything the game built
+// itself is said again in place: no reload, no restart, no unpause.
+paintStatic(document);
+document.addEventListener('arcade:lang', () => {
+  ui.relang(game);
+  fx.relabel();
+});
 
 window.addEventListener('resize', () => resizeView(view));
 

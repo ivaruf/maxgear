@@ -1,7 +1,15 @@
 // MAXGEAR v1.2 — upgrade ROSTER + derived-stat engine. SYSTEMS-CORE OWNS THIS FILE.
 //
-// Imports config.js + utils.js ONLY (no game modules) so it never creates a
-// cycle and can be unit-tested headless.
+// Imports config.js + utils.js + i18n.js ONLY (no game modules) so it never
+// creates a cycle and can be unit-tested headless — i18n.js imports nothing and
+// guards every DOM touch.
+//
+// WORDS (v1.10): every name, blurb and label a player reads comes out of
+// i18n.js at the moment it is READ, not when this table is built. `name` and
+// `blurb` are getters, and the label applyUpgrade() hands back is a FUNCTION
+// that renders itself in whatever the current language is — so a toast or a
+// floater already on screen when the player switches language from the menu
+// repaints in the new one instead of finishing its life in the old.
 //
 // ============================================================================
 // THE MODEL
@@ -30,7 +38,7 @@
 //     minLv: 0,                     // plating is -2
 //     maxLv: 5,
 //     build(stats, lv, player),     // writes ABSOLUTE values for that level
-//     desc(levels, player) }        // '+2 LEVELS'
+//     desc(levels, player) }        // '+2 LEVELS' / '+2 NIVÅER'
 //
 // INSTANTS[key] / BAD[key] / MIXED[key] — the non-levelled entries:
 //   { key, name, kind:'good'|'bad'|'mixed', category:'utility',
@@ -66,6 +74,7 @@
 // RECOMMENDED apply path (one call, all semantics live here):
 //   const res = applyUpgrade(game, slot, host);
 //   // res = { key, kind, name, label, from, to, changes:[{key,from,to}] }
+//   // label is () => string — call it to get the words in the current language
 //   game.lastUpgrade = res;               // ui.js toast + end screen
 // The primitives are exported too (addLevels / recomputeStats / entry.run) if
 // gates.js prefers the inline flow from the design doc.
@@ -93,6 +102,10 @@
 
 import { BASE_STATS, CAPS, PLAYER_DEFAULTS, ALLY_SHOT } from './config.js';
 import { clamp, choice } from './utils.js';
+import { t } from './i18n.js';
+// The trade helpers below keep a local `t` for the trade record, so they say
+// `tr` for the translator.
+const tr = t;
 
 const MAXHP_FLOOR = 30;          // plating can never trade the hull below this
 const LV5 = 5;                   // design cap for every track
@@ -146,11 +159,15 @@ function writer(key) {
   };
 }
 
-const levelsDesc = (levels) => `${levels > 0 ? '+' : ''}${levels} LEVEL${Math.abs(levels) === 1 ? '' : 'S'}`;
+const levelsDesc = (levels) => t('desc.levels', levels);
 
-function mkTrack(key, name, category, icon, build = null, minLv = 0) {
+// `name` and `blurb` are looked up on every read (see the header): the
+// English words that used to sit here live in i18n.js beside their bokmål.
+function mkTrack(key, category, icon, build = null, minLv = 0) {
   return {
-    key, name, kind: 'good', category, icon,
+    key, kind: 'good', category, icon,
+    get name() { return t(`track.${key}`); },
+    get blurb() { return t(`blurb.${key}`); },
     track: true,
     minLv, maxLv: LV5,
     build: build || writer(key),
@@ -163,29 +180,29 @@ function mkTrack(key, name, category, icon, build = null, minLv = 0) {
 // ---------------------------------------------------------------------------
 export const TRACKS = {
   // ---- offense (13) ------------------------------------------------------
-  damage:    mkTrack('damage', 'HEAVY SHOT', 'offense', 'shell'),
-  fireRate:  mkTrack('fireRate', 'FORCED DRAUGHT', 'offense', 'rof'),
-  multishot: mkTrack('multishot', 'SPLIT BARREL', 'offense', 'fan'),
-  homing:    mkTrack('homing', 'GYRO SHELL', 'offense', 'homing'),
-  lance:     mkTrack('lance', 'LANCE', 'offense', 'lance'),
-  blast:     mkTrack('blast', 'BOILER BOMB', 'offense', 'bomb'),
-  arc:       mkTrack('arc', 'TESLA COIL', 'offense', 'arc'),
-  burn:      mkTrack('burn', 'INCENDIARY', 'offense', 'flame'),
-  frost:     mkTrack('frost', 'CRYO-VENT', 'offense', 'frost'),
-  crit:      mkTrack('crit', 'HAIR TRIGGER', 'offense', 'crit'),
-  saw:       mkTrack('saw', 'FLYWHEELS', 'offense', 'saw'),
-  broadside: mkTrack('broadside', 'BROADSIDE', 'offense', 'broadside'),
-  shrapnel:  mkTrack('shrapnel', 'DEATH BURST', 'offense', 'shards'),
+  damage:    mkTrack('damage', 'offense', 'shell'),
+  fireRate:  mkTrack('fireRate', 'offense', 'rof'),
+  multishot: mkTrack('multishot', 'offense', 'fan'),
+  homing:    mkTrack('homing', 'offense', 'homing'),
+  lance:     mkTrack('lance', 'offense', 'lance'),
+  blast:     mkTrack('blast', 'offense', 'bomb'),
+  arc:       mkTrack('arc', 'offense', 'arc'),
+  burn:      mkTrack('burn', 'offense', 'flame'),
+  frost:     mkTrack('frost', 'offense', 'frost'),
+  crit:      mkTrack('crit', 'offense', 'crit'),
+  saw:       mkTrack('saw', 'offense', 'saw'),
+  broadside: mkTrack('broadside', 'offense', 'broadside'),
+  shrapnel:  mkTrack('shrapnel', 'offense', 'shards'),
   // ---- defence / utility (5) --------------------------------------------
-  squad:     mkTrack('squad', 'ESCORT', 'defence', 'ally'),
-  plating:   mkTrack('plating', 'ARMOUR PLATE', 'defence', 'plate', (stats, lv) => {
+  squad:     mkTrack('squad', 'defence', 'ally'),
+  plating:   mkTrack('plating', 'defence', 'plate', (stats, lv) => {
     const i = clamp(Math.round(lv), -2, LV5) + 2;
     stats.maxHp = PLATING_MAXHP[i];   // reconciled into player.maxHp/hp below
     stats.armor = PLATING_ARMOR[i];
   }, -2),
-  aegis:     mkTrack('aegis', 'AEGIS COIL', 'defence', 'aegis'),
-  siphon:    mkTrack('siphon', 'CONDENSER', 'defence', 'siphon'),
-  thrust:    mkTrack('thrust', 'THRUST', 'defence', 'chevrons'),
+  aegis:     mkTrack('aegis', 'defence', 'aegis'),
+  siphon:    mkTrack('siphon', 'defence', 'siphon'),
+  thrust:    mkTrack('thrust', 'defence', 'chevrons'),
 };
 
 // Campaign availability (v1.4): tier 1 offered from level 1, tier 2 from THE
@@ -199,29 +216,9 @@ const TRACK_TIERS = {
 };
 for (const k in TRACKS) TRACKS[k].tier = TRACK_TIERS[k] ?? 1;
 
-// One-line pane descriptions (v1.5 level-clear keep screen). Mechanics first,
-// flavor second — the player reads these while deciding what survives.
-const TRACK_BLURBS = {
-  damage: 'Heavier shells. Every bullet hits harder — the backbone of any build.',
-  fireRate: 'Stoke the boiler: shorter time between volleys. Multiplies everything else.',
-  multishot: 'Extra barrels fire side-by-side. The volley auto-tightens as it widens.',
-  homing: 'Gyroscopic shells curve toward the nearest machine. Stops missing for you.',
-  lance: 'Shots become needles that punch THROUGH enemies. LV5 ignores shield plates.',
-  blast: 'Shells detonate on impact, splashing nearby machines. Bigger boom per level.',
-  arc: 'Hits discharge chain lightning that jumps between machines. Loves crowds.',
-  burn: 'Shots ignite machines: damage over time. LV4 spreads fire on death.',
-  frost: 'Cryo rounds slow enemy gears — movement AND attacks. LV5 cancels charger dashes.',
-  crit: 'A chance for golden critical hits at a rising multiplier (up to 3x).',
-  saw: 'Brass flywheels orbit your hull, shredding what they touch. LV3+ blocks enemy shots.',
-  broadside: 'Auxiliary guns fire to the sides and rear. LV5 is a full ring of iron.',
-  shrapnel: 'Machines burst into shrapnel on death, wounding their neighbours.',
-  squad: 'Escort ships orbit you and echo your volley at half strength — lighter shells, same guns. Mortal — they soak hits for you.',
-  plating: 'Riveted armour: more hull AND a damage reduction from LV3.',
-  aegis: 'A recharging aether shield absorbs a hit outright. LV3+ shocks nearby machines.',
-  siphon: 'Condense the steam of the fallen: kills heal you, capped per second.',
-  thrust: 'Bigger engines. Strafe faster, dodge what others must tank.',
-};
-for (const k in TRACKS) TRACKS[k].blurb = TRACK_BLURBS[k] || '';
+// One-line pane descriptions (v1.5 level-clear keep screen) are `blurb`, read
+// through i18n.js ('blurb.<key>'). Mechanics first, flavour second — the player
+// reads these while deciding what survives.
 
 // Build order. No two builds write the same field, so this only fixes
 // determinism (and keeps HUD/end-screen listings stable).
@@ -408,65 +405,65 @@ const breachFrac = (levels) => clamp(Math.abs(levels || 0) * BREACH_STEP, 0, 0.2
 
 export const INSTANTS = {
   repair: {
-    key: 'repair', name: 'REPAIR', kind: 'good', category: 'utility',
+    key: 'repair', get name() { return t('up.repair'); }, kind: 'good', category: 'utility',
     icon: 'cross', track: false,
     slotLevels: 1, slotLevelCap: 1,             // fixed one-shot, not chargeable
     effect: { healFrac: 0.40 },
-    desc: () => 'HEAL 40%',
+    desc() { return t('desc.heal', pct(this.effect.healFrac)); },
     run(game, slot, host) {
       const p = game.player;
       host.healPlayer(game, Math.round(p.maxHp * this.effect.healFrac));
-      return { label: `REPAIR · HEAL ${pct(this.effect.healFrac)}`, changes: [] };
+      return { label: () => `${this.name} · ${this.desc()}`, changes: [] };
     },
   },
   surplus: {
-    key: 'surplus', name: 'SURPLUS', kind: 'good', category: 'utility',
+    key: 'surplus', get name() { return t('up.surplus'); }, kind: 'good', category: 'utility',
     icon: 'crit', track: false, // gold starburst reads as "bonus" (no dedicated glyph)
     slotLevels: 1, slotLevelCap: 1,
     effect: { healFrac: 0.20, score: 300 },
-    desc: () => 'HEAL 20% · +300',
+    desc() { return t('desc.surplus', pct(this.effect.healFrac), this.effect.score); },
     // The fallback when every pool is exhausted: never a dead gate.
     run(game, slot, host) {
       const p = game.player;
       host.healPlayer(game, Math.round(p.maxHp * this.effect.healFrac));
       game.score = (game.score || 0) + this.effect.score;
-      return { label: `SURPLUS · HEAL ${pct(this.effect.healFrac)} · +${this.effect.score}`, changes: [] };
+      return { label: () => `${this.name} · ${this.desc()}`, changes: [] };
     },
   },
 };
 
 export const BAD = {
   rust: {
-    key: 'rust', name: 'RUST', kind: 'bad', category: 'utility',
+    key: 'rust', get name() { return t('up.rust'); }, kind: 'bad', category: 'utility',
     icon: 'shellDown', track: false,
     slotLevels: -1, slotLevelCap: 0,            // charging DEFUSES toward 0
     effect: { levels: -1, from: 'bestOffense', defusable: true },
     desc(levels, player) {
-      if (!levels) return 'DEFUSED';
+      if (!levels) return t('desc.defused');
       const key = rustTarget(player);
-      return key ? `${levels} LV · ${TRACKS[key].name}` : 'NO EFFECT';
+      return key ? `${levels} LV · ${TRACKS[key].name}` : t('desc.noEffect');
     },
     run(game, slot) {
       // slot.levels is signed (-1 / -2); a defused slot (0) applies nothing.
-      if (!slot?.levels) return { label: 'RUST · DEFUSED', changes: [] };
+      if (!slot?.levels) return { label: () => `${this.name} · ${t('desc.defused')}`, changes: [] };
       const key = rustTarget(game.player);
-      if (!key) return { label: 'RUST · NO EFFECT', changes: [] };
+      if (!key) return { label: () => `${this.name} · ${t('desc.noEffect')}`, changes: [] };
       const ch = { key, ...addLevels(game.player, key, slot.levels) };
-      return { label: `RUST · ${TRACKS[key].name} LV${ch.from} → LV${ch.to}`, changes: [ch] };
+      return { label: () => `${this.name} · ${TRACKS[key].name} LV${ch.from} → LV${ch.to}`, changes: [ch] };
     },
   },
   breach: {
-    key: 'breach', name: 'HULL BREACH', kind: 'bad', category: 'utility',
+    key: 'breach', get name() { return t('up.breach'); }, kind: 'bad', category: 'utility',
     icon: 'heartCrack', track: false,
     slotLevels: -2, slotLevelCap: 0,            // full -> half -> DEFUSED
     effect: { damageFrac: 0.25, bypassAegis: true, defusable: true },
-    desc: (levels) => (levels ? `-${pct(breachFrac(levels))} HP` : 'DEFUSED'),
+    desc: (levels) => (levels ? t('desc.hp', pct(breachFrac(levels))) : t('desc.defused')),
     run(game, slot, host) {
       const frac = breachFrac(slot?.levels);
-      if (frac <= 0) return { label: 'HULL BREACH · DEFUSED', changes: [] };
+      if (frac <= 0) return { label: () => `${this.name} · ${t('desc.defused')}`, changes: [] };
       // bypasses AEGIS by design — the shield does not eat a hull breach.
       host.damagePlayer(game, Math.round(game.player.maxHp * frac), true, { bypassAegis: true });
-      return { label: `HULL BREACH · -${pct(frac)} HP`, changes: [] };
+      return { label: () => `${this.name} · ${t('desc.hp', pct(frac))}`, changes: [] };
     },
   },
 };
@@ -484,7 +481,7 @@ function runTrade(game, slot, host) {
   if (t.instantDamageFrac) {
     host.damagePlayer(game, Math.round(p.maxHp * t.instantDamageFrac), true, {});
   }
-  return { label: `${e.name} · ${e.desc(gainLv, p)}`, changes };
+  return { label: () => `${e.name} · ${e.desc(gainLv, p)}`, changes };
 }
 
 function tradeDesc(levels) {
@@ -492,13 +489,13 @@ function tradeDesc(levels) {
   const gain = `+${Math.max(1, levels || t.gainLv)} ${name(t.gainKey)}`;
   const loss = t.loseKey
     ? `${t.loseLv} ${name(t.loseKey)}`
-    : `-${pct(t.instantDamageFrac)} HP`;
+    : tr('desc.hp', pct(t.instantDamageFrac));
   return `${gain} / ${loss}`;
 }
 
 export const MIXED = {
   tradeScattergun: {
-    key: 'tradeScattergun', name: 'SCATTERGUN', kind: 'mixed', category: 'utility',
+    key: 'tradeScattergun', get name() { return tr('up.tradeScattergun'); }, kind: 'mixed', category: 'utility',
     iconGain: 'fan', iconLoss: 'shellDown', track: false,
     slotLevels: 2, slotLevelCap: 3,
     trade: { gainKey: 'multishot', gainLv: 2, loseKey: 'damage', loseLv: -1 },
@@ -506,7 +503,7 @@ export const MIXED = {
     run: runTrade,
   },
   tradeGlassCannon: {
-    key: 'tradeGlassCannon', name: 'GLASS CANNON', kind: 'mixed', category: 'utility',
+    key: 'tradeGlassCannon', get name() { return tr('up.tradeGlassCannon'); }, kind: 'mixed', category: 'utility',
     iconGain: 'shell', iconLoss: 'plate', track: false,
     slotLevels: 2, slotLevelCap: 3,
     trade: { gainKey: 'damage', gainLv: 2, loseKey: 'plating', loseLv: -2 },
@@ -514,7 +511,7 @@ export const MIXED = {
     run: runTrade,
   },
   tradeOverpressure: {
-    key: 'tradeOverpressure', name: 'OVERPRESSURE', kind: 'mixed', category: 'utility',
+    key: 'tradeOverpressure', get name() { return tr('up.tradeOverpressure'); }, kind: 'mixed', category: 'utility',
     iconGain: 'bomb', iconLoss: 'heartCrack', track: false,
     slotLevels: 2, slotLevelCap: 3,
     trade: { gainKey: 'blast', gainLv: 2, instantDamageFrac: 0.20 },
@@ -569,10 +566,14 @@ export function applyUpgrade(game, slot, host) {
   let changes;
   if (e.track) {
     changes = [{ key: slot.key, ...addLevels(p, slot.key, slot.levels || 0) }];
-    label = `${e.name} LV${changes[0].from} → LV${changes[0].to}`;
+    const { from, to } = changes[0];
+    label = () => `${e.name} LV${from} → LV${to}`;
   } else {
     const res = e.run(game, slot, host) || {};
-    label = res.label || slotLabel(p, slot.key, slot.levels);
+    // A run() that names no label falls back to the slot's own words, taken
+    // now (it reads the live build, which is about to change) and so frozen.
+    if (res.label) label = res.label;
+    else { const words = slotLabel(p, slot.key, slot.levels); label = () => words; }
     changes = res.changes || [];
   }
   recomputeStats(p);                            // idempotent; settles maxHp/allyHp

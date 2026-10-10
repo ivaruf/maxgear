@@ -17,6 +17,7 @@ import { audio } from './audio.js';
 import { healPlayer } from './player.js';
 import { killEnemy } from './enemies.js';        // see CIRCULAR IMPORT above
 import { ENTRIES, TRACK_ORDER, addLevels, recomputeStats, trackLevel } from './upgrades.js';
+import { t as tr } from './i18n.js';   // `t` is time in this file's painters
 
 export const SHIELD_TIME = 3;   // seconds of invulnerability from a shieldToken
 
@@ -86,13 +87,13 @@ export function collectPickup(game, pk) {
     const secs = pk.value || SHIELD_TIME;
     game.player.invuln = Math.max(game.player.invuln, secs);
     fx.flash(pk.color, 0.16, 0.3);
-    fx.textPop(pk.x, pk.z, 'SHIELD!', pk.color);
+    fx.textPop(pk.x, pk.z, () => tr('pop.shield'), pk.color);
   } else if (pk.kind === 'overdrive') {
     // player.js: overdriveT > 0 -> fireInterval * 0.6. Refresh, never stack.
     const p = game.player;
     p.overdriveT = Math.max(p.overdriveT || 0, OVERDRIVE_TIME);
     fx.flash('#ffb347', 0.15, 0.3);
-    fx.textPop(pk.x, pk.z, 'OVERDRIVE!', pk.color);
+    fx.textPop(pk.x, pk.z, () => tr('pop.overdrive'), pk.color);
   }
 }
 
@@ -135,7 +136,7 @@ function steamburst(game, pk) {
   for (let i = 0; i < 3; i++) {
     fx.explosion(pk.x + rand(-140, 140), pk.z + rand(120, 520), rand(70, 110), STEAM);
   }
-  fx.textPop(p.x, p.z + 60, 'STEAMBURST!', STEAM);
+  fx.textPop(p.x, p.z + 60, () => tr('pop.steamburst'), STEAM);
   audio.explode();
 }
 
@@ -169,7 +170,9 @@ function gearbox(game, pk) {
   const key = choice(pool);
   const { from, to } = addLevels(p, key, GEARBOX_LEVELS);
   recomputeStats(p);                  // stats are DERIVED — never mutate directly
-  const label = `${ENTRIES[key].name} LV${from} → LV${to}`;
+  // A function, like every upgrade label (upgrades.js header): the toast and
+  // the floater say it in whatever language is current when they paint.
+  const label = () => `${ENTRIES[key].name} LV${from} → LV${to}`;
   game.lastUpgrade = { label, kind: 'good', key, from, to };
   fx.flash(pk.color, 0.16, 0.3);
   fx.textPop(pk.x, pk.z, label, pk.color);

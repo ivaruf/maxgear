@@ -236,7 +236,15 @@ export const fx = {
   // MERGE_CELL world units absorbs the new value instead of stacking a second
   // number. Anything else ("+10", gate labels) never merges. An explicit `key`
   // (e.g. an enemy id) merges by identity and ignores distance.
+  //
+  // WORDS ARRIVE AS FUNCTIONS (v1.10): `text` may be () => string, which renders
+  // itself in the current language. It is called once here and again from
+  // relabel() when the player switches language, never per frame — so a
+  // "SKJOLD!" already rising over a paused field becomes "SHIELD!" with the
+  // rest of the screen. Plain strings (numbers, "+250") work as they always did.
   textPop(x, z, text, color = '#ffffff', key = null) {
+    const words = typeof text === 'function' ? text : null;
+    if (words) text = words();
     const num = /^[0-9]+(\.[0-9]+)?$/.test(text) ? parseFloat(text) : null;
 
     if (key !== null || num !== null) {
@@ -254,6 +262,7 @@ export const fx = {
           fl.text = String(Math.round(fl.value));
         } else {
           fl.text = text;
+          fl.words = words;
         }
         fl.x = x; fl.z = z;      // follow the source
         fl.t = 0; fl.pop = 1;    // refresh + punch
@@ -263,12 +272,20 @@ export const fx = {
 
     if (floaters.length >= FLOATER_CAP) floaters.shift();
     floaters.push({
-      x, z, text, color,
+      x, z, text, color, words,
       t: 0, life: num === null ? 1.0 : 0.8,
       key, value: num,
       crit: num !== null && color === CRIT_COLOR,
       dx: rand(-9, 9), pop: 1,
     });
+  },
+
+  // A language switch: every floater that came in as words says them again.
+  relabel() {
+    for (let i = 0; i < floaters.length; i++) {
+      const fl = floaters[i];
+      if (fl.words) fl.text = fl.words();
+    }
   },
 
   shake(mag, dur) { doShake(mag, dur); },

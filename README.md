@@ -79,7 +79,8 @@ the build you entered it with.
 | Menu / pause | `Esc` / `P` (or the ☰ plate, top right) | ☰ plate |
 | Restart level | `R` (any time) | tap after defeat |
 | Mute | `M` (or the 🔊 plate, top right) | 🔊 plate |
-| Music / effects levels | the SOUND BOARD, inside the menu behind the ☰ plate | same |
+| Music / effects levels | the sound plate (LYD / SOUND), inside the menu behind the ☰ plate | same |
+| Language | the SPRÅK / LANGUAGE row on the same plate — Norsk by default, live switch | same |
 | Fullscreen | the ⛶ plate, top right (where the browser has it) | same |
 
 **Gates:** green = good, red = bad, purple = trade-off. Every upgrade is a **level track
@@ -198,7 +199,7 @@ Every sound is a rendered file (v1.6 — the game synthesized all of it in WebAu
   a real audio device — the effects are recorded in realtime and are audible while it works.
   The script's header explains the mix calibration; read it before changing a piece.
 - **Levels**: two buses — MUSIC and EFFECTS — both remembered in `localStorage` under
-  `maxgear.audio.v1` along with mute. The player sets them on the SOUND BOARD, inside the
+  `maxgear.audio.v1` along with mute. The player sets them on the sound plate, inside the
   one menu panel behind the corner's ☰ plate — one node, one home, nothing to keep in
   step. The end fight raises
   the music by un-ducking it: with a single fixed track, level is the only intensity lever

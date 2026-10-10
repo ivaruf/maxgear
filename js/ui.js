@@ -15,6 +15,13 @@
 //   spans so every chip sits under the panel it describes: 3 -> all three,
 //   2 -> the outer two, 1 -> the middle one. Unused spans are hidden AND reset.
 // Every id/class hook that existed before still works.
+// v1.10: TWO LANGUAGES. Every word this file writes comes from i18n.js as
+//   tr(key) — `t` is taken by too many locals here (the toast node, a trade, a
+//   track) to be the translator's name. Whatever this file builds at runtime it
+//   can also rebuild: ui.relang() repaints every screen, label and readout in
+//   place when the player switches language from the menu — no reload, no
+//   restart, no unpause, the menu stays open — and main.js calls it on the
+//   hub's `arcade:lang` event. The static markup is i18n.js's paintStatic().
 
 import { levelProgress } from './level.js';
 import { BASE_STATS, PLAYER_DEFAULTS } from './config.js';
@@ -25,6 +32,8 @@ import {
 } from './upgrades.js';
 import { bakeIconSprite, iconDataURL, clearIconCache, hasIcon, drawIcon } from './icons.js';
 import { startPreview } from './previews.js';
+import { t as tr, setLang } from './i18n.js';
+import { levelDef } from './campaign.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,14 +51,9 @@ const STRIP_CAP_SM = 5;  // …5 on small phones (design §B6)
 const MINUS = '−';  // proper minus sign for the bad-gate copy
 
 // One short label per track for the cramped HUD strip (the end screen uses the
-// full name from upgrades.js). Presentation only, so it lives here.
-const SHORT = {
-  damage: 'HEAVY', fireRate: 'DRAUGHT', multishot: 'SPLIT', homing: 'GYRO',
-  lance: 'LANCE', blast: 'BOMB', arc: 'TESLA', burn: 'BURN', frost: 'CRYO',
-  crit: 'CRIT', saw: 'SAWS', broadside: 'BROAD', shrapnel: 'BURST',
-  squad: 'ESCORT', plating: 'ARMOUR', aegis: 'AEGIS', siphon: 'SIPHON',
-  thrust: 'THRUST',
-};
+// full name from upgrades.js). Presentation only; the words are i18n.js's
+// 'short.<key>', falling back to the full name.
+const shortName = (key) => (TRACKS[key] ? tr(`short.${key}`) : key);
 
 const EMPTY = [];
 
@@ -66,6 +70,7 @@ const toastQueue = [];
 let toastTimer = null;
 let toastActive = false;
 let toastShownAt = 0;
+let toastItem = null;      // the label on screen now, so relang() can say it again
 const TOAST_HOLD = 1250;   // ms a lone toast stays up
 const TOAST_RUSH = 620;    // ms per toast when more are waiting
 const TOAST_MIN = 260;     // never flash a label shorter than this
@@ -94,6 +99,15 @@ let pwLevel = 3;         // preview level, 1..5 (clickable pips)
 let pwStop = null;
 let previewResize = 0;   // debounce for restarting a preview after a resize
 let prevLevels = null;   // { key: level } as last RENDERED — drives the .bump pop
+// v1.10: what each runtime-built screen was last painted FROM, so a language
+// switch can paint it again in place rather than rebuilding it from the game.
+let lastSlots = null;    // showSlots() argument
+let lastLc = null;       // { game, info } for showLevelClear()
+let lastEnd = null;      // { game, victory, extra } for showEnd()
+let lastInRun = true;    // paintMenu() argument
+let updateState = null;  // null | { version } | 'busy'
+let exitRefused = false; // the browser would not close this tab
+let exitLabel = null;    // () => the way-out words for this window
 
 function esc(v) {
   return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -151,12 +165,14 @@ function nextToast() {
   const item = toastQueue.shift();
   if (!item) {
     toastActive = false;
+    toastItem = null;
     t.classList.add('hidden');
     return;
   }
   toastActive = true;
+  toastItem = item;
   toastShownAt = Date.now();
-  t.textContent = item.label;
+  t.textContent = words(item.label);
   // className assignment also clears .hidden -> element becomes visible.
   // Only bad/mixed have their own skin; 'good'/'utility'/anything else = default.
   t.className = item.kind === 'bad' || item.kind === 'mixed' ? item.kind : '';
@@ -167,9 +183,14 @@ function nextToast() {
   toastTimer = setTimeout(nextToast, toastQueue.length ? TOAST_RUSH : TOAST_HOLD);
 }
 
+// Upgrade labels arrive as functions (upgrades.js header) so they can be said
+// again in another language; anything else is already words.
+const words = (label) => (typeof label === 'function' ? label() : String(label ?? ''));
+
 function clearToasts() {
   toastQueue.length = 0;
   toastActive = false;
+  toastItem = null;
   clearTimeout(toastTimer);
   if (els) els.toast.classList.add('hidden');
 }
@@ -235,7 +256,7 @@ function trackChip(key, lv, px, full, bumped) {
   if (!def) return '';
   const cls = [lv < 0 ? 'down' : 'up'];
   if (bumped) cls.push('bump');
-  const label = full ? def.name : (SHORT[key] || def.name);
+  const label = full ? def.name : shortName(key);
   return `<i class="${cls.join(' ')}">${chipIcon(def.icon, lv, px)}<em>${esc(label)}</em>${pipsHTML(lv)}</i>`;
 }
 
@@ -243,7 +264,7 @@ function trackChip(key, lv, px, full, bumped) {
 // whole rail is iconized; on phones the em label hides and icon+number remain.
 const NUM_ICON = { DMG: 'shell', ROF: 'rof', SHOTS: 'fan', HULL: 'plate' };
 const numChip = (k, v, up) =>
-  `<i class="num${up ? ' up' : ''}">${chipIcon(NUM_ICON[k], 1, 12)}<em>${esc(k)}</em>${esc(v)}</i>`;
+  `<i class="num${up ? ' up' : ''}">${chipIcon(NUM_ICON[k], 1, 12)}<em>${esc(tr(`num.${k}`))}</em>${esc(v)}</i>`;
 
 // HUD strip: DMG + ROF numerics, then the strongest track chips (design §B6).
 function stripHTML(p, list, bump) {
@@ -289,9 +310,9 @@ function buildChips(p) {
     + numChip('ROF', `${(1 / s.fireInterval).toFixed(1)}/s`, s.fireInterval < BASE_STATS.fireInterval)
     + numChip('SHOTS', s.projectiles, s.projectiles > BASE_STATS.projectiles)
     + numChip('HULL', hull, hull > PLAYER_DEFAULTS.maxHp);
-  return groupHTML('CORE', core)
-    + trackGroup(p, 'OFFENSE', OFFENSE_TRACKS, 14)
-    + trackGroup(p, 'DEFENCE', DEFENCE_TRACKS, 14);
+  return groupHTML(esc(tr('grp.core')), core)
+    + trackGroup(p, esc(tr('grp.offense')), OFFENSE_TRACKS, 14)
+    + trackGroup(p, esc(tr('grp.defence')), DEFENCE_TRACKS, 14);
 }
 
 // ============================================================================
@@ -358,16 +379,16 @@ function slotView(p, slot, tier) {
 // ('+2 HEAVY / -2 ARMOUR' instead of '+2 HEAVY SHOT / -2 ARMOUR PLATE').
 function shortTrade(up, levels) {
   const t = up.trade;
-  const nm = (k) => SHORT[k] || (TRACKS[k] && TRACKS[k].name) || k;
+  const nm = (k) => shortName(k);
   const gain = `+${Math.max(1, levels || t.gainLv)} ${nm(t.gainKey)}`;
   const loss = t.loseKey
     ? `${t.loseLv} ${nm(t.loseKey)}`
-    : `${MINUS}${Math.round((t.instantDamageFrac || 0) * 100)}% HP`;
+    : `${MINUS}${Math.round((t.instantDamageFrac || 0) * 100)}% ${tr('unit.hp')}`;
   return `${gain} / ${loss}`;
 }
 
 function slotText(p, v) {
-  if (v.defused) return 'DEFUSED';
+  if (v.defused) return tr('desc.defused');
   const up = v.up;
   const tight = v.tight;
   let body;
@@ -381,7 +402,7 @@ function slotText(p, v) {
   } else if (up && up.key === 'rust') {
     // RUST eats your best offensive track — previewName is that live victim.
     const victim = !tight && v.name && v.name !== up.name ? ` · ${v.name}` : '';
-    body = `RUST ${MINUS}${Math.abs(v.levels)} LV${victim}`;
+    body = `${up.name} ${MINUS}${Math.abs(v.levels)} LV${victim}`;
   } else if (up && up.trade && tight) {
     body = shortTrade(up, v.levels);
   } else if (up) {
@@ -392,8 +413,8 @@ function slotText(p, v) {
   if (!v.chargeable) return body;
   // ⌖ = "you can shoot this". In cram the bare crosshair has to carry it for bad
   // slots too: '⌖ DEFUSE · HULL BREACH' needs a third line no phone chip has.
-  if (v.kind === 'bad' && !v.cram) return `${tight ? '⌖ DEFUSE · ' : '⌖ SHOOT TO DEFUSE · '}${body}`;
-  return `${tight ? '⌖ ' : '⌖ SHOOT: '}${body}`;
+  if (v.kind === 'bad' && !v.cram) return `${tr(tight ? 'legend.defuseTight' : 'legend.shootDefuse')}${body}`;
+  return `${tight ? '⌖ ' : tr('legend.shoot')}${body}`;
 }
 
 function sizeLegendCanvas(node, i) {
@@ -492,11 +513,7 @@ function paintLegend(p, slots) {
 }
 
 // ---- v1.5.1 armoury internals -------------------------------------------------
-const TIER_NOTE = {
-  1: 'AVAILABLE FROM THE OUTSKIRTS (LEVEL 1)',
-  2: 'UNLOCKS IN THE FOUNDRY (LEVEL 2)',
-  3: 'UNLOCKS IN THE SHIPYARDS (LEVEL 3)',
-};
+const tierNote = (tier) => (tier >= 1 && tier <= 3 ? tr(`tier.${tier}`) : '');
 
 function stopPowerPreview() {
   if (pwStop) { try { pwStop(); } catch (e) { /* noop */ } pwStop = null; }
@@ -509,9 +526,9 @@ function browsePower(key, force = false) {
   if (!els || !def) return;
   els.pwDname.textContent = `${def.name} \u00b7 LV${pwLevel}`;
   els.pwDblurb.textContent = def.blurb || '';
-  els.pwDtier.textContent = TIER_NOTE[def.tier ?? 1] || '';
+  els.pwDtier.textContent = tierNote(def.tier ?? 1);
   els.pwLvls.innerHTML = [1, 2, 3, 4, 5].map((n) =>
-    `<button type="button" data-lv="${n}" class="${n <= pwLevel ? 'on' : ''}" aria-label="Level ${n}"></button>`).join('');
+    `<button type="button" data-lv="${n}" class="${n <= pwLevel ? 'on' : ''}" aria-label="${esc(tr('up.levelN', n))}"></button>`).join('');
   for (const card of els.pwGrid.querySelectorAll('[data-pw]')) {
     card.classList.toggle('browse', card.dataset.pw === pwBrowse);
   }
@@ -564,9 +581,46 @@ function paintSoundBoard() {
   dial(els.volSfx, els.volSfxVal, audio.sfxVolume());
   if (els.btnCutoff) {
     const m = audio.isMuted();
-    els.btnCutoff.textContent = m ? '🔇  MUTED' : '🔊  SOUND ON';
+    els.btnCutoff.textContent = tr(m ? 'sound.off' : 'sound.on');
     els.btnCutoff.setAttribute('aria-pressed', m ? 'true' : 'false');
   }
+}
+
+function paintDifficulties() {
+  if (!els || !els.diffList) return;
+  els.diffList.innerHTML = ['easy', 'medium', 'hard'].map((k) =>
+    `<button class="pick-card diff-${k}" data-diff="${k}" type="button">
+       <b>${esc(tr(`diff.${k}`))}</b><span>${esc(tr(`diff.${k}.blurb`))}</span></button>`).join('');
+}
+
+// The corner's menu and mute plates: art carries the meaning, so these words
+// are the whole of what a screen reader hears.
+function paintCorner() {
+  if (!els) return;
+  if (els.btnMenu) {
+    els.btnMenu.setAttribute('aria-label', tr('corner.menu'));
+    els.btnMenu.title = tr('corner.menuTitle');
+  }
+  if (els.muteBtn) {
+    const m = els.muteBtn.getAttribute('aria-pressed') === 'true';
+    const label = tr(m ? 'corner.unmute' : 'corner.mute');
+    els.muteBtn.setAttribute('aria-label', label);
+    els.muteBtn.title = `${label} (M)`;
+  }
+}
+
+// The level-clear screen's words, separate from its state: relang() calls this
+// without touching the KEEP selection or restarting the preview.
+function paintLevelClearText() {
+  if (!els || !lastLc) return;
+  const { game, info } = lastLc;
+  els.lcHeading.textContent = tr('lc.heading', info.levelIndex + 1);
+  els.lcSub.textContent = tr('lc.sub', levelDef(info.levelIndex).name, levelDef(info.levelIndex + 1).name);
+  els.lcStats.innerHTML = [
+    [tr('stat.score'), game.score],
+    [tr('stat.kills'), game.kills],
+  ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join('');
+  els.lcNote.innerHTML = tr(lcOwned.length > 2 ? 'lc.notePick' : lcOwned.length ? 'lc.noteAll' : 'lc.noteNone');
 }
 
 export const ui = {
@@ -723,8 +777,13 @@ export const ui = {
        * and stay. `tab` is not passed: verb() reads it only when there is no
        * arcade to go back to, and in that case `app` is already the honest
        * answer. Framed or in a tab this goes back to the arcade; installed it
-       * closes the window. */
-      const label = exit.verb({ arcade: '◂ BACK TO ARCADE', app: '✕ CLOSE' });
+       * closes the window.
+       *
+       * verb() is handed the words in the CURRENT language, and asked again
+       * by relang() on a switch — it chooses between them and says nothing of
+       * its own, so the label is always ours to translate. */
+      exitLabel = () => exit.verb({ arcade: tr('exit.arcade'), app: tr('exit.app') });
+      const label = exitLabel();
       for (const id of ['btn-exit-title', 'btn-exit-pause']) {
         const button = $(id);
         if (!button) continue;
@@ -736,7 +795,8 @@ export const ui = {
           exit.quit().then((how) => {
             // Refused: the browser will not close a window it did not open.
             if (how !== 'refused') return;
-            button.textContent = 'CLOSE THIS TAB YOURSELF';
+            exitRefused = true;
+            button.textContent = tr('exit.refused');
             button.disabled = true;
           });
         });
@@ -752,6 +812,14 @@ export const ui = {
     // before v1.8. The corner cluster still stops its own clicks, because the
     // corner is the one thing left sitting over a screen that does.
     tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
+
+    // ---- the language row (v1.10) -------------------------------------------
+    // setLang() stores the choice under the hub's key, repaints the static
+    // markup and fires `arcade:lang`, which main.js turns into ui.relang().
+    // Nothing else happens: the menu stays open, a paused run stays paused.
+    for (const b of document.querySelectorAll('#sound-board [data-lang]')) {
+      tap(b, () => setLang(b.dataset.lang));
+    }
 
     // ---- corner plates (v1.7) -----------------------------------------------
     // The title screen's own top-right pair: a speaker that opens the sound
@@ -849,16 +917,9 @@ export const ui = {
     }
     tap($('btn-newgame-back'), actions.backToSlots);
 
-    // Difficulty cards are static: build once.
+    // Difficulty cards: built here and again by relang(), never by the game.
     if (els.diffList) {
-      const DIFFS = [
-        ['easy', 'EASY', 'A Sunday drive. Gentler machines.'],
-        ['medium', 'MEDIUM', 'The intended experience.'],
-        ['hard', 'HARD', 'Boilers screaming. Bring armour.'],
-      ];
-      els.diffList.innerHTML = DIFFS.map(([k, label, blurb]) =>
-        `<button class="pick-card diff-${k}" data-diff="${k}" type="button">
-           <b>${label}</b><span>${blurb}</span></button>`).join('');
+      paintDifficulties();
       els.diffList.addEventListener('click', (ev) => {
         const card = ev.target.closest('[data-diff]');
         if (card) { audio.click(); actions.pickDifficulty(card.dataset.diff); }
@@ -875,7 +936,7 @@ export const ui = {
           if (armedDelete === i) { armedDelete = -1; audio.click(); actions.deleteSlot(i); }
           else {
             armedDelete = i;
-            del.textContent = '\u2715 SURE?';
+            del.textContent = tr('slot.sure');
             del.classList.add('armed');
             clearTimeout(armedTimer);
             armedTimer = setTimeout(() => {
@@ -900,7 +961,8 @@ export const ui = {
         ev.stopPropagation();
         if (els.btnUpdate.disabled) return;
         els.btnUpdate.disabled = true;
-        els.btnUpdate.textContent = '⚙  UPDATING…';
+        updateState = 'busy';
+        els.btnUpdate.textContent = tr('update.busy');
         audio.click();
         actions.applyUpdate();
       });
@@ -955,6 +1017,74 @@ export const ui = {
     }
   },
 
+  /* A language switch, live (hub CLAUDE.md §2, "Two languages"). i18n.js has
+     already repainted every [data-i18n] node; this repaints everything this
+     file wrote itself, IN PLACE. It changes no state: the menu that was open
+     stays open, a paused run stays paused, the KEEP picks stay picked, an
+     armed delete simply disarms. Canvas words (gates carry none; floaters and
+     previews do) follow on their next frame — effects.relabel() is main.js's. */
+  relang(game) {
+    if (!els) return;
+    paintCorner();
+    paintSoundBoard();
+    this.paintMenu(lastInRun);
+    if (exitLabel) {
+      const label = exitRefused ? tr('exit.refused') : exitLabel();
+      for (const id of ['btn-exit-title', 'btn-exit-pause']) {
+        const b = $(id);
+        if (b) b.textContent = label;
+      }
+    }
+    if (els.btnUpdate && updateState) {
+      els.btnUpdate.textContent = updateState === 'busy'
+        ? tr('update.busy') : tr('update.ready', updateState.version);
+    }
+    paintDifficulties();
+    if (lastSlots) this.showSlots(lastSlots);
+    // KEEP screen: words only — the picks and the running preview survive.
+    if (lastLc) {
+      paintLevelClearText();
+      for (const card of els.lcGrid.querySelectorAll('[data-keep]')) {
+        const def = TRACKS[card.dataset.keep];
+        const em = card.querySelector('em');
+        if (def && em) em.textContent = def.name;
+      }
+      const own = lcOwned.find((o) => o.key === lcBrowse);
+      const def = TRACKS[lcBrowse];
+      if (def && own) {
+        els.lcDname.textContent = `${def.name} · LV${own.lv}`;
+        els.lcDblurb.textContent = def.blurb || '';
+      }
+    }
+    // Upgrades screen: likewise, without restarting its preview.
+    if (els.pwGrid) {
+      for (const card of els.pwGrid.querySelectorAll('[data-pw]')) {
+        const def = TRACKS[card.dataset.pw];
+        const em = card.querySelector('em');
+        if (def && em) em.textContent = def.name;
+      }
+      const def = TRACKS[pwBrowse];
+      if (def) {
+        els.pwDname.textContent = `${def.name} \u00b7 LV${pwLevel}`;
+        els.pwDblurb.textContent = def.blurb || '';
+        els.pwDtier.textContent = tierNote(def.tier ?? 1);
+        for (const b of els.pwLvls.querySelectorAll('[data-lv]')) {
+          b.setAttribute('aria-label', tr('up.levelN', +b.dataset.lv));
+        }
+      }
+    }
+    if (lastEnd) this.showEnd(lastEnd.game, lastEnd.victory, lastEnd.extra);
+    // HUD: the strip and the legend rebuild on their next update(); the act
+    // caption, the boss name and the toast are said again now, without
+    // replaying their entry animations.
+    prevStrip = '';
+    prevLegend = '';
+    if (prevAct && !els.actLabel.classList.contains('hidden')) els.actLabel.textContent = words(prevAct);
+    if (toastItem && toastActive) els.toast.textContent = words(toastItem.label);
+    const boss = game && game.boss;
+    if (boss && boss.def) els.bossName.textContent = boss.def.name || tr('boss.ironclad');
+  },
+
   setMuted(m) {
     // aria-pressed carries the state and CSS draws the slash off it, the same
     // pairing the fullscreen plate uses — so the picture and what a screen
@@ -962,8 +1092,7 @@ export const ui = {
     // swapped into textContent, which no reader announces and which never
     // looked like the brass around it.
     els.muteBtn.setAttribute('aria-pressed', String(!!m));
-    els.muteBtn.setAttribute('aria-label', m ? 'Unmute' : 'Mute');
-    els.muteBtn.title = m ? 'Unmute (M)' : 'Mute (M)';
+    paintCorner();       // the label follows aria-pressed, in the current language
     paintSoundBoard();   // the board's MASTER lever shows the same state
   },
 
@@ -974,7 +1103,8 @@ export const ui = {
      and the panel itself are the same nodes either way. */
   paintMenu(inRun) {
     if (!els) return;
-    if (els.menuTitle) els.menuTitle.textContent = inRun ? 'PAUSED' : 'SETTINGS';
+    lastInRun = !!inRun;
+    if (els.menuTitle) els.menuTitle.textContent = tr(inRun ? 'menu.paused' : 'menu.settings');
     if (els.btnResume) els.btnResume.classList.toggle('hidden', !inRun);
     if (els.btnQuit) els.btnQuit.classList.toggle('hidden', !inRun);
     if (els.btnMenuClose) els.btnMenuClose.classList.toggle('hidden', inRun);
@@ -989,7 +1119,8 @@ export const ui = {
   offerUpdate(version) {
     if (!els || !els.btnUpdate) return;
     els.btnUpdate.disabled = false;
-    els.btnUpdate.textContent = `⚙  ${version ? version + ' ' : ''}READY — TAP TO UPDATE`;
+    updateState = { version: version || '' };
+    els.btnUpdate.textContent = tr('update.ready', updateState.version);
     els.btnUpdate.classList.remove('hidden');
   },
 
@@ -1008,28 +1139,32 @@ export const ui = {
   // listener in init() survives; two-tap delete state resets with the rebuild).
   showSlots(slots) {
     if (!els || !els.slotList) return;
+    lastSlots = slots;
     armedDelete = -1;
     const ago = (t) => {
       if (!t) return '';
       const m = Math.max(1, Math.round((Date.now() - t) / 60000));
-      if (m < 60) return `${m}m ago`;
+      if (m < 60) return tr('slot.agoM', m);
       const h = Math.round(m / 60);
-      return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+      return h < 48 ? tr('slot.agoH', h) : tr('slot.agoD', Math.round(h / 24));
     };
+    // The save stores the difficulty's KEY ('easy'…), never a word, so a save
+    // made in one language reads in the other.
+    const diffWord = (k) => tr(`diff.${k === 'easy' || k === 'hard' ? k : 'medium'}`);
     els.slotList.innerHTML = slots.map((s, i) => {
       if (!s) {
         return `<button class="pick-card slot-card empty" data-slot="${i}" type="button">
-          <b>SLOT ${i + 1}</b><span>EMPTY — NEW GAME</span></button>`;
+          <b>${esc(tr('slot.name', i + 1))}</b><span>${esc(tr('slot.empty'))}</span></button>`;
       }
       const prog = s.cleared
-        ? 'CAMPAIGN CLEARED ★'
-        : `LEVEL ${Math.min(s.levelIndex + 1, 4)} / 4`;
-      const diff = esc(String(s.difficulty || 'medium').toUpperCase());
+        ? tr('slot.cleared')
+        : tr('slot.level', Math.min(s.levelIndex + 1, 4), 4);
+      const diff = esc(diffWord(s.difficulty));
       return `<div class="pick-card slot-card" data-slot="${i}" role="button" tabindex="0">
-        <b>SLOT ${i + 1} · ${prog}</b>
-        <span>${diff} · SCORE ${esc(s.score ?? 0)} · ${ago(s.updatedAt)}</span>
-        <em class="slot-resume">${s.cleared ? 'REPLAY FINALE →' : 'RESUME →'}</em>
-        <button class="slot-del" data-del="${i}" type="button" aria-label="Delete save">\u2715</button>
+        <b>${esc(tr('slot.name', i + 1))} · ${esc(prog)}</b>
+        <span>${diff} · ${esc(tr('slot.score', s.score ?? 0))} · ${esc(ago(s.updatedAt))}</span>
+        <em class="slot-resume">${esc(tr(s.cleared ? 'slot.replay' : 'slot.resume'))}</em>
+        <button class="slot-del" data-del="${i}" type="button" aria-label="${esc(tr('slot.delete'))}">\u2715</button>
       </div>`;
     }).join('');
   },
@@ -1037,12 +1172,7 @@ export const ui = {
   // v1.5: the KEEP screen — pick exactly `need` upgrades to carry forward.
   showLevelClear(game, info) {
     if (!els || !els.lcHeading) return;
-    els.lcHeading.textContent = `LEVEL ${info.levelIndex + 1} CLEAR`;
-    els.lcSub.textContent = `${info.name} secured \u00b7 next: ${info.next}`;
-    els.lcStats.innerHTML = [
-      ['SCORE', game.score],
-      ['KILLS', game.kills],
-    ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+    lastLc = { game, info };
 
     // Owned positive tracks only (rusted plating resets for free — no card).
     lcOwned = ownedTracks(game.player).filter((o) => o.lv > 0);
@@ -1050,11 +1180,7 @@ export const ui = {
     lcSelection = new Set(lcNeed < 2 ? lcOwned.map((o) => o.key) : []);
     if (lcOwned.length === 2) lcSelection = new Set(lcOwned.map((o) => o.key));
 
-    els.lcNote.innerHTML = lcOwned.length > 2
-      ? `CHOOSE <b>2</b> UPGRADES TO KEEP \u2014 THE REST IS SCRAPPED`
-      : lcOwned.length
-        ? 'FEWER THAN THREE UPGRADES \u2014 EVERYTHING SURVIVES THE CROSSING'
-        : 'NO UPGRADES TO CARRY \u2014 FRESH BOILER AHEAD';
+    paintLevelClearText();   // heading, sub-line, stats and the note
 
     els.lcGrid.innerHTML = lcOwned.map(({ key, lv }) => {
       const def = TRACKS[key];
@@ -1087,20 +1213,25 @@ export const ui = {
   },
 
   showEnd(game, victory, extra = {}) {
+    lastEnd = { game, victory, extra };
     const p = game.player;
     if (els.victorySub) {
       if (victory && extra.campaignDone) {
-        els.victorySub.textContent = `THE CAMPAIGN IS COMPLETE · ${extra.difficulty || ''}`.trim();
+        // extra.difficulty is the DIFFICULTIES entry; its label is a getter,
+        // so this reads in the current language every time it is painted.
+        const diff = extra.difficulty && typeof extra.difficulty === 'object'
+          ? extra.difficulty.label : (extra.difficulty || '');
+        els.victorySub.textContent = tr('end.campaign', diff);
         els.victorySub.classList.remove('hidden');
       } else {
         els.victorySub.classList.add('hidden');
       }
     }
     const stats = [
-      ['SCORE', game.score],
-      ['KILLS', game.kills],
-      ['DISTANCE', `${Math.round(p.z / 10)}m`],
-    ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${k}</span></div>`).join('');
+      [tr('stat.score'), game.score],
+      [tr('stat.kills'), game.kills],
+      [tr('stat.distance'), `${Math.round(p.z / 10)}m`],
+    ].map(([k, v]) => `<div><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join('');
     const chips = buildChips(p);
     if (victory) {
       els.victoryStats.innerHTML = stats;
@@ -1162,11 +1293,13 @@ export const ui = {
     }
 
     // --- Act / wave label (optional: game.level.actLabel may be undefined) ---
+    // level.js hands over a FUNCTION per act (stable identity, so this compare
+    // is the old string compare) that says the caption in the current language.
     const act = game.level && game.level.actLabel;
     if (act) {
       if (act !== prevAct) {
         prevAct = act;
-        els.actLabel.textContent = act;
+        els.actLabel.textContent = words(act);
         els.actLabel.classList.remove('hidden');
         els.actLabel.style.animation = 'none';
         void els.actLabel.offsetHeight;
@@ -1183,7 +1316,7 @@ export const ui = {
       const frac = Math.max(boss.hp / boss.maxHp, 0);
       els.bossWrap.classList.remove('hidden');
       // display name is data-driven (enemies.js owns boss.def.name = IRONCLAD)
-      els.bossName.textContent = (boss.def && boss.def.name) || 'IRONCLAD';
+      els.bossName.textContent = (boss.def && boss.def.name) || tr('boss.ironclad');
       els.bossBar.style.width = `${frac * 100}%`;
       // phase thresholds are the 66% / 33% ticks drawn on the bar; enemies.js
       // owns boss.bossPhase (monotonic) — fall back to the raw fraction.
