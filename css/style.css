@@ -991,21 +991,10 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   color: var(--brass-lt);
   font-variant-numeric: tabular-nums;
 }
-/* MASTER sits on one line: label left, brass lever right. */
-.board-master {
-  display: flex; flex-direction: row; align-items: center; justify-content: space-between;
-  gap: 12px;
-  padding-top: 9px;
-  border-top: 1px solid rgba(201, 151, 59, 0.22);
-}
-.cutoff-btn {
-  min-height: 36px; min-width: 148px;
-  padding: 7px 14px; font-size: 12px; text-align: center;
-}
 /* ---- v1.10 the language row: SPRÅK / LANGUAGE ----
-   The last row on the board, ruled off like ALL SOUND above it and laid out
-   the same way — caption left, controls right — so the two rows read as one
-   plate. Two equal buttons (flex: 1 1 0, the hub's equal rule: Norsk and
+   The last row on the board, ruled off from the two levels above it —
+   caption left, controls right. (ALL SOUND used to sit between them; it was
+   the corner's mute plate twice and went in v1.12.) Two equal buttons (flex: 1 1 0, the hub's equal rule: Norsk and
    English are alternatives, so neither may look like the lesser one), and the
    chosen one is cast brass, the same metal as PLAY, while the other stays a
    dark plate. When the caption and both buttons cannot share a line — a
@@ -1040,14 +1029,15 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   box-shadow: inset 0 1px 0 rgba(255, 250, 228, 0.8), 0 0 12px rgba(240, 180, 41, 0.3);
 }
 .lang-btn:focus-visible { outline: 2px solid rgba(53, 224, 255, 0.7); outline-offset: 2px; }
-
-/* pressed = muted: the lever is thrown and the plate reads cold */
-.cutoff-btn[aria-pressed="true"] {
-  color: #eeb9a8;
-  border-color: rgba(210, 81, 60, 0.6);
-  background: linear-gradient(180deg, rgba(44, 24, 19, 0.95), rgba(18, 11, 9, 0.95));
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+/* The title screen's copy of the row (v1.12). Same parts, but it sits in the
+   title's one column rather than on a plate, so it loses the rule above it
+   and takes the column's width like START and UPGRADES beside it. The caption
+   stays: a row of two flags with no word beside it reads as decoration. */
+.title-lang {
+  padding-top: 0; border-top: 0;
+  flex-wrap: nowrap;
 }
+.title-lang .lang-seg { flex: 1 1 auto; max-width: none; }
 
 #sound-board input[type="range"] {
   -webkit-appearance: none; appearance: none;
@@ -1101,7 +1091,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
    than let the screen start scrolling. */
 @media (max-width: 480px) {
   #sound-board { padding: 11px 13px 12px; }
-  .cutoff-btn { min-width: 124px; padding: 7px 10px; }
 }
 @media (max-height: 640px) {
   #sound-board { gap: 8px; padding: 9px 13px 10px; }
@@ -1513,6 +1502,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
       "logo   powers"
       "logo   update"
       "logo   hint"
+      "logo   lang"
       "logo   exit";
     align-content: center;
     align-content: safe center;
@@ -1532,6 +1522,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #btn-powers { grid-area: powers; }
   #btn-update { grid-area: update; }
   #screen-title .hint { grid-area: hint; }
+  #title-lang { grid-area: lang; width: min(100%, 330px); }
   #btn-exit-title { grid-area: exit; margin-top: 6px; }
   /* The column keeps the portrait stack's one width: without the wrapper's
      grid every button would shrink to its own words and centre itself, which
@@ -1606,7 +1597,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 8px 14px;
   }
-  .board-cap, .board-master, .board-lang { grid-column: 1 / -1; }
+  .board-cap, .board-lang { grid-column: 1 / -1; }
   #sound-board .dial-head { gap: 6px; }
   #sound-board .dial-row .dial-label { font-size: 12px; letter-spacing: 0.8px; }
 

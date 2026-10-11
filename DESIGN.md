@@ -162,7 +162,10 @@ synthesis for a new sound, add a piece and re-run the build.
 - The board lives in THE MENU (`#screen-pause`, state `'paused'`), which is the one panel
   behind the corner's ☰ plate and has no second home to drift from: `#sound-board` is a
   single node that never moves. It was bolted into the title screen until v1.8, then had a
-  `#screen-sound` of its own until v1.9; both are gone. Two levels and a cutoff are set
+  `#screen-sound` of its own until v1.9; both are gone. Its ALL SOUND cutoff went in v1.12 —
+  the corner's mute plate is the one silence switch, and nothing may duplicate a plate. The
+  language row is on the board AND, as a second copy with its own clipPath ids, on the title
+  screen above the way out, where a stranger sees it without opening anything. Two levels are set
   once, and hub CLAUDE.md §2 puts a control like that behind a door rather than on the
   screen a player sees every time. The panel wears two faces — `ui.paintMenu(inRun)` says
   PAUSED and shows RESUME and QUIT mid-run, SETTINGS and CLOSE anywhere else — and

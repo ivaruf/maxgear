@@ -83,9 +83,6 @@ const STRINGS = {
     'sound.cap': 'LYD',
     'sound.music': 'MUSIKK',
     'sound.sfx': 'EFFEKTER',
-    'sound.all': 'ALL LYD',
-    'sound.on': '🔊  LYD PÅ',
-    'sound.off': '🔇  LYD AV',
     'lang.cap': 'SPRÅK',
 
     // ---- HUD -------------------------------------------------------------
@@ -278,9 +275,6 @@ const STRINGS = {
     'sound.cap': 'SOUND',
     'sound.music': 'MUSIC',
     'sound.sfx': 'EFFECTS',
-    'sound.all': 'ALL SOUND',
-    'sound.on': '🔊  SOUND ON',
-    'sound.off': '🔇  SOUND OFF',
     'lang.cap': 'LANGUAGE',
 
     'hud.score': 'SCORE',

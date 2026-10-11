@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.11.0'; // One way out like every other cabinet, sentence case behind the hub's arrow, and Escape always walks toward it
+const VERSION = 'v1.12.0'; // Three plates and nothing duplicating them: ALL SOUND leaves the menu, and the language row stands on the title screen too
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

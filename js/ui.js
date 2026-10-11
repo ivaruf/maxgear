@@ -596,11 +596,6 @@ function paintSoundBoard() {
   };
   dial(els.volMusic, els.volMusicVal, audio.musicVolume());
   dial(els.volSfx, els.volSfxVal, audio.sfxVolume());
-  if (els.btnCutoff) {
-    const m = audio.isMuted();
-    els.btnCutoff.textContent = tr(m ? 'sound.off' : 'sound.on');
-    els.btnCutoff.setAttribute('aria-pressed', m ? 'true' : 'false');
-  }
 }
 
 function paintDifficulties() {
@@ -683,7 +678,6 @@ export const ui = {
       soundBoard: $('sound-board'),
       volMusic: $('vol-music'), volMusicVal: $('vol-music-val'),
       volSfx: $('vol-sfx'), volSfxVal: $('vol-sfx-val'),
-      btnCutoff: $('btn-cutoff'),
       cornerTools: $('corner-tools'), btnMenu: $('btn-menu'),
       menuTitle: $('menu-title'), btnMenuClose: $('btn-menu-close'),
       btnResume: $('btn-resume'), btnQuit: $('btn-quit'),
@@ -829,15 +823,29 @@ export const ui = {
     // run on a click anywhere, unlike the title screen it was bolted into
     // before v1.8. The corner cluster still stops its own clicks, because the
     // corner is the one thing left sitting over a screen that does.
-    tap(els.btnCutoff, () => { audio.unlock(); actions.mute(); });
+    // (Its ALL SOUND lever is gone since v1.12: it was the corner's mute
+    // plate a second time, and the hub's corner rule is that nothing
+    // duplicates the three plates.)
 
     // ---- the language row (v1.10) -------------------------------------------
     // setLang() stores the choice under the hub's key, repaints the static
     // markup and fires `arcade:lang`, which main.js turns into ui.relang().
     // Nothing else happens: the menu stays open, a paused run stays paused.
-    for (const b of document.querySelectorAll('#sound-board [data-lang]')) {
-      tap(b, () => setLang(b.dataset.lang));
+    // Two copies of the row since v1.12 — the menu's and the title screen's —
+    // and one handler for both. The title's must stop its click: that screen
+    // starts a run on a click anywhere, and choosing a language is not that.
+    for (const b of document.querySelectorAll('button[data-lang]')) {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        audio.unlock();
+        setLang(b.dataset.lang);
+        audio.click();
+      });
     }
+    // A miss between the two buttons (the caption, the gap) must not start a
+    // run either.
+    const titleLang = $('title-lang');
+    if (titleLang) titleLang.addEventListener('click', (ev) => ev.stopPropagation());
 
     // ---- corner plates (v1.7) -----------------------------------------------
     // The title screen's own top-right pair: a speaker that opens the sound
@@ -1111,7 +1119,6 @@ export const ui = {
     // looked like the brass around it.
     els.muteBtn.setAttribute('aria-pressed', String(!!m));
     paintCorner();       // the label follows aria-pressed, in the current language
-    paintSoundBoard();   // the board's MASTER lever shows the same state
   },
 
   /* What the one menu panel says, given where it was opened from. Mid-run it is
