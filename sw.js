@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.10.0'; // Norwegian first, English one tap away on the menu, and the menus say plain words
+const VERSION = 'v1.11.0'; // One way out like every other cabinet, sentence case behind the hub's arrow, and Escape always walks toward it
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

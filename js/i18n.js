@@ -60,9 +60,13 @@ const STRINGS = {
     'title.hint': 'Mellomrom / klikk / trykk for å starte  ·  Esc pause  ·  R start på nytt  ·  M lyd av/på',
     'update.ready': (v) => `⚙  NY VERSJON KLAR${v ? ` · ${v}` : ''}`,
     'update.busy': '⚙  OPPDATERER …',
-    'exit.arcade': '◂ TILBAKE TIL ARKADEN',
-    'exit.app': '✕ LUKK',
-    'exit.refused': 'LUKK FANEN SELV',
+    // Sentence case, no ◂ and no caps, unlike every other button here: the way
+    // out is the one control that looks the same in every game in the hub
+    // (CLAUDE.md §2, "One button"), and ui.js draws the shared back arrow in
+    // front of these words rather than a glyph of MAXGEAR's own.
+    'exit.arcade': 'Tilbake til arkaden',
+    'exit.app': 'Lukk',
+    'exit.refused': 'Lukk fanen selv',
 
     // ---- corner ----------------------------------------------------------
     'corner.menu': 'Meny',
@@ -257,9 +261,9 @@ const STRINGS = {
     'title.hint': 'Space / click / tap to start  ·  Esc pause  ·  R restart  ·  M mute',
     'update.ready': (v) => `⚙  UPDATE READY${v ? ` · ${v}` : ''}`,
     'update.busy': '⚙  UPDATING…',
-    'exit.arcade': '◂ BACK TO ARCADE',
-    'exit.app': '✕ CLOSE',
-    'exit.refused': 'CLOSE THIS TAB YOURSELF',
+    'exit.arcade': 'Back to arcade',
+    'exit.app': 'Close',
+    'exit.refused': 'Close this tab yourself',
 
     'corner.menu': 'Menu',
     'corner.menuTitle': 'Menu (Esc)',

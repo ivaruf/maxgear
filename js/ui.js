@@ -109,6 +109,23 @@ let updateState = null;  // null | { version } | 'busy'
 let exitRefused = false; // the browser would not close this tab
 let exitLabel = null;    // () => the way-out words for this window
 
+/* THE WAY OUT'S GLYPH, the same drawing in every game in the hub, to the path
+   data (CLAUDE.md §2, "One button"): a left arrow on the corner plates' 24×24
+   grid, stroked and never filled. Colour and stroke width are MAXGEAR's and
+   live in css (.exit-glyph). aria-hidden, because the words beside it already
+   say where it goes. The words sit in their own span so a language switch or
+   a refused close can replace them without redrawing the arrow's markup. */
+const EXIT_GLYPH = '<svg class="exit-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+  + '<path d="M19 12H5m6-6-6 6 6 6"/></svg>';
+function paintExit(button, label) {
+  let words = button.querySelector('.exit-words');
+  if (!words) {
+    button.innerHTML = EXIT_GLYPH + '<span class="exit-words"></span>';
+    words = button.querySelector('.exit-words');
+  }
+  words.textContent = label;
+}
+
 function esc(v) {
   return String(v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
@@ -738,7 +755,7 @@ export const ui = {
      * Only wired when the arcade's exit.js is actually there: it is another
      * repository's file and is allowed to be missing, and a quit button that
      * cannot quit is worse than none. Its words are exit.js's answer too —
-     * inside the arcade this goes back to the floor, installed it closes the
+     * inside the arcade this goes back to the arcade, installed it closes the
      * window, and in an ordinary tab nothing may close anything, so it must
      * not pretend otherwise.
      *
@@ -771,10 +788,11 @@ export const ui = {
      * predicates have been in exit.js since it existed. */
     const offers = exit && (exit.framed() || exit.standalone());
     if (exit && offers) {
-      /* Plain words, not MAXGEAR's. A way out is the one control on the menu
-       * that must mean the same thing in every game in the hub, so it says
-       * where it goes and nothing more — the case and the ◂ / ✕ are typography
-       * and stay. `tab` is not passed: verb() reads it only when there is no
+      /* Plain words, not MAXGEAR's — and since v1.11 not MAXGEAR's look
+       * either. A way out is the one control that must look and mean the same
+       * in every game in the hub, so it says where it goes in sentence case,
+       * behind the hub's shared arrow, and the brass caps and the ◂ / ✕ that
+       * it wore until then are gone. `tab` is not passed: verb() reads it only when there is no
        * arcade to go back to, and in that case `app` is already the honest
        * answer. Framed or in a tab this goes back to the arcade; installed it
        * closes the window.
@@ -787,7 +805,7 @@ export const ui = {
       for (const id of ['btn-exit-title', 'btn-exit-pause']) {
         const button = $(id);
         if (!button) continue;
-        button.textContent = label;
+        paintExit(button, label);
         button.classList.remove('hidden');
         button.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -796,7 +814,7 @@ export const ui = {
             // Refused: the browser will not close a window it did not open.
             if (how !== 'refused') return;
             exitRefused = true;
-            button.textContent = tr('exit.refused');
+            paintExit(button, tr('exit.refused'));
             button.disabled = true;
           });
         });
@@ -1032,7 +1050,7 @@ export const ui = {
       const label = exitRefused ? tr('exit.refused') : exitLabel();
       for (const id of ['btn-exit-title', 'btn-exit-pause']) {
         const b = $(id);
-        if (b) b.textContent = label;
+        if (b) paintExit(b, label);
       }
     }
     if (els.btnUpdate && updateState) {
@@ -1205,6 +1223,27 @@ export const ui = {
         ${chipIcon(def.icon, pwLevel, 20)}<em>${esc(def.name)}</em></button>`;
     }).join('');
     browsePower(pwBrowse || TRACK_ORDER[0], true);
+  },
+
+  /* Escape on the title is the "Back to arcade" button — not a second route to
+     exit.quit() that could drift from it, but the button itself, pressed. So it
+     does nothing wherever the button is not offered (a plain tab, exit.js
+     missing) or has been refused, exactly as there is nothing to tap there. */
+  pressExit() {
+    const b = $('btn-exit-title');
+    if (!b || b.classList.contains('hidden') || b.disabled) return false;
+    b.click();
+    return true;
+  },
+
+  /* Back on the KEEP pick from the menu opened over it. The choice is left
+     exactly as it was — showLevelClear() would start it again from nothing —
+     and only the preview, which showScreen() stopped on the way out, runs
+     again. */
+  reshowLevelClear() {
+    if (!els) return;
+    if (lcBrowse) browseKeep(lcBrowse);
+    paintKeepGrid();
   },
 
   // Selection when complete, else null (main.js gates Space/continue on this).

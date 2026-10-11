@@ -77,6 +77,7 @@ the build you entered it with.
 | Shoot | automatic | automatic |
 | Start | `Space` / `Enter` / click / tap | tap |
 | Menu / pause | `Esc` / `P` (or the ☰ plate, top right) | ☰ plate |
+| Back a step (title: back to arcade) | `Esc` | — |
 | Restart level | `R` (any time) | tap after defeat |
 | Mute | `M` (or the 🔊 plate, top right) | 🔊 plate |
 | Music / effects levels | the sound plate (LYD / SOUND), inside the menu behind the ☰ plate | same |

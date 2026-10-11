@@ -27,7 +27,9 @@ import { loadSlots, writeSlot, clearSlot, makeSave } from './saves.js';
 import { paintStatic } from './i18n.js';
 
 const canvas = document.getElementById('game');
-const input = createInput(canvas);
+// Escape is answered in the keypress itself (input.js says why); escapeStep is
+// a hoisted function declaration further down, read only once a key arrives.
+const input = createInput(canvas, { escape: () => escapeStep() });
 const view = createView(canvas);
 
 const game = {
@@ -162,10 +164,10 @@ function restartLevel() {
   startLevel(c.levelIndex, c.levelStartTracks);
 }
 
-/* Where CLOSE leaves the menu for: whatever screen the plate was pressed from.
+/* Where BACK leaves the menu for: whatever screen the plate was pressed from.
    Declared out here beside setState rather than inside the actions object
-   because the Esc path in the state machine reads it too, and both have to
-   agree or Esc and CLOSE would leave by different doors. */
+   because Escape, P and the BACK button all leave through closeMenu(), and
+   they have to agree or they would leave by different doors. */
 let menuReturn = 'title';
 
 function setState(s) {
@@ -184,6 +186,17 @@ function setState(s) {
     ui.paintMenu(menuReturn === 'playing');
   }
   if (s === 'slots') ui.showSlots(loadSlots());
+  // COMING BACK OUT OF THE MENU IS NOT ARRIVING. Closing a menu opened over the
+  // KEEP pick or an end screen lands here with s === menuReturn, and running
+  // the arrival again replayed the win sting and — on KEEP — threw away the
+  // two picks the player had already made, because showLevelClear() starts
+  // the choice from scratch. That was reachable from the menu plate before;
+  // Escape opening the menu on these screens (escapeStep) made it one key
+  // away, so the screen is simply shown again as it was left.
+  if (from === 'paused' && (s === 'levelclear' || s === 'victory' || s === 'defeat')) {
+    if (s === 'levelclear') ui.reshowLevelClear();
+    return;
+  }
   if (s === 'levelclear') {
     const c = game.campaign;
     ui.showLevelClear(game, {
@@ -263,6 +276,52 @@ function step(dt) {
   }
 }
 
+/* The menu plate's door, shared with Escape so the two cannot open different
+   panels. Remembers where it was opened from: "title" is only the right place
+   to come back to when the title is where you were. */
+function openMenu() {
+  if (game.state === 'paused') return;
+  audio.unlock();
+  menuReturn = game.state;
+  setState('paused');
+}
+/* ...and its way back out, shared with BACK, RESUME and Escape. Mid-run that
+   door is the run; opened from any other screen it is that screen. */
+function closeMenu() {
+  if (game.state !== 'paused') return;
+  if (menuReturn === 'playing') { setState('playing'); ui.showScreen(null); }
+  else setState(menuReturn);
+}
+
+/* ESCAPE: ONE STEP BACK, AND FROM THE TITLE THAT STEP IS THE ARCADE (hub
+   CLAUDE.md §2). The whole of what Escape means in MAXGEAR is this switch and
+   nowhere else — input.js calls it from the keypress and queues nothing, so
+   one press can never also count as a pause, a start or a restart:
+
+     title, nothing open     the "Back to arcade" button itself, and only when
+                             that button is shown (ui.pressExit says which)
+     slots / armoury         their BACK — to the title
+     difficulty              its BACK — to the slots, not the title, which is
+                             where Esc used to drop you, skipping a screen
+     playing                 opens the menu, which pauses
+     the menu                closes it: the run carries on, or the screen it
+                             was opened over comes back
+     KEEP pick / end screens opens the menu over them — they have no BACK of
+                             their own, and the menu is where the way out is
+
+   So Escape never throws a run away, and pressing it twice from anywhere
+   lands on a panel with the way out on it. */
+function escapeStep() {
+  switch (game.state) {
+    case 'title': ui.pressExit(); break;
+    case 'slots': case 'powers': audio.click(); setState('title'); break;
+    case 'newgame': audio.click(); setState('slots'); break;
+    case 'paused': audio.click(); closeMenu(); break;
+    case 'playing': case 'levelclear': case 'defeat': case 'victory':
+      audio.click(); openMenu(); break;
+  }
+}
+
 function handleInput() {
   if (input.took('mute')) {
     ui.setMuted(audio.toggleMute());
@@ -278,7 +337,7 @@ function handleInput() {
     case 'slots':
     case 'newgame':
     case 'powers':
-      if (pausePress) { audio.click(); setState('title'); } // Esc backs out
+      if (pausePress) { audio.click(); setState('title'); } // P backs out (Esc: escapeStep)
       break;
 
     case 'playing':
@@ -286,16 +345,12 @@ function handleInput() {
       else if (restartPress) restartLevel();
       break;
     case 'paused':
-      // Esc leaves by the same door CLOSE uses. When the menu was opened
-      // mid-run that door is the run — which is what pause has always meant —
-      // and when it was opened from a menu screen it is that screen. Without
-      // menuReturn this dropped a player who opened SETTINGS from the title
-      // straight into a run they never started.
-      if (pausePress || startPress) {
-        audio.click();
-        if (menuReturn === 'playing') { setState('playing'); ui.showScreen(null); }
-        else setState(menuReturn);
-      }
+      // P (and Space) leave by the same door BACK and Escape use. When the
+      // menu was opened mid-run that door is the run — which is what pause has
+      // always meant — and when it was opened from a menu screen it is that
+      // screen. Without menuReturn this dropped a player who opened SETTINGS
+      // from the title straight into a run they never started.
+      if (pausePress || startPress) { audio.click(); closeMenu(); }
       else if (restartPress) restartLevel();
       break;
     case 'levelclear':
@@ -379,13 +434,8 @@ ui.init(game, {
   //
   // Where CLOSE goes is remembered rather than assumed — "title" is only the
   // right answer when the title is where you were.
-  showMenu: () => {
-    if (game.state === 'paused') return;
-    audio.unlock();
-    menuReturn = game.state;
-    setState('paused');
-  },
-  closeMenu: () => setState(menuReturn === 'playing' ? 'playing' : menuReturn),
+  showMenu: openMenu,
+  closeMenu,
   backToTitle: () => setState('title'),
   // Tapping UPDATE READY is a promise the button has to keep. It used to post
   // SKIP_WAITING and rely entirely on `controllerchange` to reload — and when

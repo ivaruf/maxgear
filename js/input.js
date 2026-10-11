@@ -1,7 +1,7 @@
 // Keyboard + pointer(touch/mouse-drag) input. Semantic one-shot actions are
 // queued and consumed by main.js via took(action).
 
-export function createInput(canvas) {
+export function createInput(canvas, { escape = null } = {}) {
   const keys = { left: false, right: false };
   const presses = new Set();
   let dragPx = 0;              // accumulated horizontal drag in CSS pixels
@@ -26,7 +26,23 @@ export function createInput(canvas) {
         e.preventDefault();
         break;
       case 'KeyR': press('restart'); break;
-      case 'Escape': case 'KeyP': press('pause'); break;
+      // ESCAPE IS NOT A QUEUED ACTION, and not another name for P. The hub
+      // gives it one meaning in every game — one step back, and from the title
+      // that step is the arcade — while P stays a pause key and nothing more;
+      // folding the two together is how Escape on the title came to do nothing
+      // at all. It is answered HERE, inside the keypress, by main.js's
+      // escapeStep(), rather than queued for the next animation frame like the
+      // rest: so it never sits in the queue to fire later on some other
+      // screen, never shares a frame with a start or a pause, and leaving the
+      // game happens inside the key's own user activation, which closing an
+      // installed window can need. preventDefault so the page does nothing
+      // else with it (leaving fullscreen is the browser's own, and it takes
+      // that Esc before any page sees it).
+      case 'Escape':
+        e.preventDefault();
+        if (escape) escape();
+        break;
+      case 'KeyP': press('pause'); break;
       case 'KeyM': press('mute'); break;
     }
   });

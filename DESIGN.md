@@ -166,7 +166,10 @@ synthesis for a new sound, add a piece and re-run the build.
   once, and hub CLAUDE.md §2 puts a control like that behind a door rather than on the
   screen a player sees every time. The panel wears two faces — `ui.paintMenu(inRun)` says
   PAUSED and shows RESUME and QUIT mid-run, SETTINGS and CLOSE anywhere else — and
-  `main.js`'s `menuReturn` is what CLOSE and Esc both leave by, so they cannot disagree.
+  `main.js`'s `menuReturn` is what BACK, P and Esc all leave by (`closeMenu()`), so they cannot disagree.
+  Escape itself means one thing everywhere, in `escapeStep()` and nowhere else (hub CLAUDE.md §2): a
+  screen's BACK on slots / difficulty / upgrades, open the menu in play or over KEEP and the end
+  screens, close it again, and on the title press "Back to arcade" — only when that button is shown.
   Its controls
   call `audio.unlock()` themselves, because the board may be the player's first touch of the
   game. The two rows are MUSIC and EFFECTS; the second said MACHINERY until v1.8 and the
