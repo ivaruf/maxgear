@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.12.0'; // Three plates and nothing duplicating them: ALL SOUND leaves the menu, and the language row stands on the title screen too
+const VERSION = 'v1.12.1'; // precache reads past the browser's HTTP cache, so an update can never mix old and new files
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -80,10 +80,17 @@ const ASSETS = [
 // as fast as it was in v1.5. It needs no special case: audio.js fetches the
 // track as a plain request, so the handler's own put() covers it.
 
+// `cache: 'reload'` on everything the install stores. Without it the precache
+// reads through the browser's HTTP cache, which may still hold yesterday's copy
+// of a file, so a new version could be filed with some of the old files in it —
+// on 2026-10-11 dam_break ran a new screens.js against a stale sound.js and the
+// menu never wired up. The arcade learned this first (arcade/sw.js, `fresh`).
+const fresh = (url) => new Request(url, { cache: 'reload' });
+
 self.addEventListener('install', (event) => {
   // No skipWaiting() here: after precaching, the new worker stays WAITING
   // until the user accepts the update from the title screen.
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
+  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS.map(fresh))));
 });
 
 self.addEventListener('message', (event) => {
