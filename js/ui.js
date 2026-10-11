@@ -831,21 +831,13 @@ export const ui = {
     // setLang() stores the choice under the hub's key, repaints the static
     // markup and fires `arcade:lang`, which main.js turns into ui.relang().
     // Nothing else happens: the menu stays open, a paused run stays paused.
-    // Two copies of the row since v1.12 — the menu's and the title screen's —
-    // and one handler for both. The title's must stop its click: that screen
-    // starts a run on a click anywhere, and choosing a language is not that.
-    for (const b of document.querySelectorAll('button[data-lang]')) {
-      b.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        audio.unlock();
-        setLang(b.dataset.lang);
-        audio.click();
-      });
+    // (v1.12 stood a second copy of the row on the title screen; v1.13 took
+    // it back off — language lives behind the menu plate — so this is the
+    // only one again, and it sits on a screen that does not start a run on a
+    // click, so it needs no stopPropagation.)
+    for (const b of document.querySelectorAll('#sound-board [data-lang]')) {
+      tap(b, () => setLang(b.dataset.lang));
     }
-    // A miss between the two buttons (the caption, the gap) must not start a
-    // run either.
-    const titleLang = $('title-lang');
-    if (titleLang) titleLang.addEventListener('click', (ev) => ev.stopPropagation());
 
     // ---- corner plates (v1.7) -----------------------------------------------
     // The title screen's own top-right pair: a speaker that opens the sound

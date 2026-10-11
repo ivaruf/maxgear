@@ -164,8 +164,8 @@ synthesis for a new sound, add a piece and re-run the build.
   single node that never moves. It was bolted into the title screen until v1.8, then had a
   `#screen-sound` of its own until v1.9; both are gone. Its ALL SOUND cutoff went in v1.12 —
   the corner's mute plate is the one silence switch, and nothing may duplicate a plate. The
-  language row is on the board AND, as a second copy with its own clipPath ids, on the title
-  screen above the way out, where a stranger sees it without opening anything. Two levels are set
+  language row is on the board only: v1.12 put a second copy on the title screen and v1.13
+  took it back off, because language and sound are settings and live behind ☰. Two levels are set
   once, and hub CLAUDE.md §2 puts a control like that behind a door rather than on the
   screen a player sees every time. The panel wears two faces — `ui.paintMenu(inRun)` says
   PAUSED and shows RESUME and QUIT mid-run, SETTINGS and CLOSE anywhere else — and

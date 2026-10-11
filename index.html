@@ -121,40 +121,6 @@
            LAST IN THE COLUMN and a little apart, the same button in every
            game in the hub — and Escape on this screen presses it (main.js,
            escapeStep). See ../arcade/exit.js. -->
-      <!-- THE LANGUAGE, ON THE TITLE ITSELF (v1.12). It lived only behind the
-           menu plate's SETTINGS face, which is one tap away and exactly one tap
-           too many for the stranger who cannot read the Norwegian the game
-           opened in — the hub moved it onto every start screen as a visible
-           row, above the way out, which stays last. Same buttons, same
-           [data-lang] wiring as the menu's copy; ui.js stops their clicks,
-           because this screen starts a run on a click anywhere. -->
-      <div class="board-lang title-lang" id="title-lang">
-        <span class="dial-label" id="lang-cap-t" data-i18n="lang.cap">SPRÅK</span>
-        <div class="lang-seg" role="group" aria-labelledby="lang-cap-t">
-          <button class="small-btn lang-btn" type="button" data-lang="nb" lang="nb" aria-pressed="true">
-            <svg class="flag" viewBox="0 0 22 16" aria-hidden="true" focusable="false">
-              <rect width="22" height="16" fill="#ba0c2f"/>
-              <path d="M6 0h4v16H6zM0 6h22v4H0z" fill="#fff"/>
-              <path d="M7 0h2v16H7zM0 7h22v2H0z" fill="#00205b"/>
-            </svg>
-            <span>NORSK</span>
-          </button>
-          <button class="small-btn lang-btn" type="button" data-lang="en" lang="en" aria-pressed="false">
-            <svg class="flag" viewBox="0 0 60 30" aria-hidden="true" focusable="false">
-              <clipPath id="mg-uk-clip-t"><path d="M0 0v30h60V0z"/></clipPath>
-              <clipPath id="mg-uk-diag-t"><path d="M30 15h30v15zv15H0zH0V0zV0h30z"/></clipPath>
-              <g clip-path="url(#mg-uk-clip-t)">
-                <path d="M0 0v30h60V0z" fill="#012169"/>
-                <path d="M0 0l60 30m0-30L0 30" stroke="#fff" stroke-width="6"/>
-                <path d="M0 0l60 30m0-30L0 30" clip-path="url(#mg-uk-diag-t)" stroke="#c8102e" stroke-width="4"/>
-                <path d="M30 0v30M0 15h60" stroke="#fff" stroke-width="10"/>
-                <path d="M30 0v30M0 15h60" stroke="#c8102e" stroke-width="6"/>
-              </g>
-            </svg>
-            <span>ENGLISH</span>
-          </button>
-        </div>
-      </div>
       <button class="small-btn exit-btn hidden" id="btn-exit-title" type="button"></button>
     </div>
 
@@ -173,10 +139,13 @@
          mid-run    PAUSE, FORTSETT, the board, AVSLUTT RUNDEN, the way out
          elsewhere  INNSTILLINGER, the board, TILBAKE, the way out
 
-       The board carries the language row as well as the two levels. The title
-       screen carries a second copy of that row in plain sight (v1.12), so a
-       stranger finds ENGLISH before a run without opening anything; this one
-       is for changing it mid-run.
+       The board carries the language row as well as the two levels, so the
+       SETTINGS face — one tap on the menu plate from the title screen — is
+       where a stranger who cannot read the Norwegian the game opened in finds
+       ENGLISH before a run has begun. (v1.12 stood a second copy on the title
+       itself; v1.13 took it back off, because the hub's rule is now that
+       language and sound live behind the menu plate and the title spends its
+       room on the ways in and the way out.)
 
        js/ui.js paints the difference by hiding what does not apply, so nothing
        here is built twice and the levels are the same two sliders in both
@@ -226,9 +195,9 @@
            Norsk first; each endonym is written in its own language whatever
            the current one is, with lang= so a screen reader says it right.
            The flags are the hub's drawings, copied from kitchens as they are —
-           never emoji. The Union Jack's clipPath ids are page-global and the
-           row is drawn twice — here and on the title screen — so the title's
-           copy carries ids of its own (-t), or its flag clips against this one. -->
+           never emoji. The Union Jack's clipPath ids are page-global, and this
+           is the only copy on the page; if the row is ever drawn twice, the
+           second copy needs ids of its own or its flag clips against this one. -->
       <div class="board-lang">
         <span class="dial-label" id="lang-cap" data-i18n="lang.cap">SPRÅK</span>
         <div class="lang-seg" role="group" aria-labelledby="lang-cap">

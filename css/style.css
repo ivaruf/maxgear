@@ -1029,15 +1029,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   box-shadow: inset 0 1px 0 rgba(255, 250, 228, 0.8), 0 0 12px rgba(240, 180, 41, 0.3);
 }
 .lang-btn:focus-visible { outline: 2px solid rgba(53, 224, 255, 0.7); outline-offset: 2px; }
-/* The title screen's copy of the row (v1.12). Same parts, but it sits in the
-   title's one column rather than on a plate, so it loses the rule above it
-   and takes the column's width like START and UPGRADES beside it. The caption
-   stays: a row of two flags with no word beside it reads as decoration. */
-.title-lang {
-  padding-top: 0; border-top: 0;
-  flex-wrap: nowrap;
-}
-.title-lang .lang-seg { flex: 1 1 auto; max-width: none; }
 
 #sound-board input[type="range"] {
   -webkit-appearance: none; appearance: none;
@@ -1502,7 +1493,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
       "logo   powers"
       "logo   update"
       "logo   hint"
-      "logo   lang"
       "logo   exit";
     align-content: center;
     align-content: safe center;
@@ -1522,7 +1512,6 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
   #btn-powers { grid-area: powers; }
   #btn-update { grid-area: update; }
   #screen-title .hint { grid-area: hint; }
-  #title-lang { grid-area: lang; width: min(100%, 330px); }
   #btn-exit-title { grid-area: exit; margin-top: 6px; }
   /* The column keeps the portrait stack's one width: without the wrapper's
      grid every button would shrink to its own words and centre itself, which

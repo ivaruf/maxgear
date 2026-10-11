@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.12.1'; // precache reads past the browser's HTTP cache, so an update can never mix old and new files
+const VERSION = 'v1.13.0'; // The language row leaves the title screen: language and sound live behind the menu plate, and the title keeps the ways in and the way out
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
