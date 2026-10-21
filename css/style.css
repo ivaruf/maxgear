@@ -1126,6 +1126,21 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
    it from — and pressing it would do precisely nothing. */
 #corner-tools .corner-btn[hidden] { display: none; }
 
+/* THE OPENING STING. js/intro.js's canvas, which the script creates and
+   removes. Above everything, the corner plates included, because for its
+   three seconds it is a curtain over the whole page; a tap anywhere on it
+   skips, and touch-action keeps that tap from becoming a scroll or a zoom.
+   Reduced motion never creates it at all. */
+#intro {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  touch-action: none;
+  cursor: pointer;
+}
+
 /* ---- The title's one column ----
    A single implicit grid column, so every cell comes out as wide as the widest
    of them and the stack lines up without anybody maintaining a magic width

@@ -36,6 +36,16 @@
 <script src="js/touch-guard.js" defer></script>
 </head>
 <body>
+<!-- The opening sting: brass gears roll in, mesh and spin up, steam bursts,
+     and MAXGEAR slams down and flies to its place on the title — about three
+     seconds, skipped by any tap or key; see the file. ASYNC AND FIRST IN THE
+     BODY, not deferred in the head: a deferred script waits for the whole
+     document, and the point is to be running before main.js's module graph,
+     so that its capture-phase key listener is registered ahead of
+     js/input.js's. Async never blocks the parser, so the title underneath
+     paints and boots exactly as before; the sting is only a curtain over it
+     (css/style.css #intro), and with reduced motion it does nothing. -->
+<script src="js/intro.js" async></script>
 <div id="wrap">
   <canvas id="game"></canvas>
 

@@ -219,6 +219,7 @@ js/level.js js/obstacles.js         — level agent
 js/effects.js (+render.js visuals)  — fx agent
 js/ui.js js/audio.js (+style.css)   — ui/audio agent
 js/screen.js                        — ui/audio agent (see the exception below)
+js/intro.js                         — ui/audio agent (the opening sting; same exception, below)
 tools/audio/ assets/audio/          — ui/audio agent (the .rb pieces are content; nothing
                                       writes assets/audio except tools/audio/build.sh)
 js/upgrades.js                      — upgrade agent (track tables, recompute, boss estimator)
@@ -238,3 +239,11 @@ anywhere, and do not rename it to the API it calls: uBlock Origin's default list
 basename across the whole of github.io and a blocked static import blanks the entire module
 graph (hub CLAUDE.md §2). It is listed by hand in sw.js's ASSETS for the same reason nothing
 imports it.
+
+`js/intro.js` (v1.14) is the opening sting and breaks the same rules for the same reason: a
+CLASSIC script loaded `async` from the very top of `<body>`, importing nothing, creating its own
+canvas over the whole page for about three seconds and removing itself. It must run before
+main.js's graph so its capture-phase keydown (which swallows the skipping press, so it can never
+also be the title's Escape, Space or Enter) is registered ahead of js/input.js's. It moves no
+element — it only hides the title's <h1> for the moment its own flying copy lands on it — and
+does nothing at all under prefers-reduced-motion. Listed by hand in ASSETS.

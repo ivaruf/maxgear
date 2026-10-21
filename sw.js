@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.13.0'; // The language row leaves the title screen: language and sound live behind the menu plate, and the title keeps the ways in and the way out
+const VERSION = 'v1.14.0'; // An opening sting: brass gears mesh and spin up, steam bursts, and MAXGEAR slams down and flies to its place on the title
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -48,6 +48,8 @@ const ASSETS = [
   './js/screen.js',
   // Classic, loaded by index.html directly, so no import reaches it either.
   './js/touch-guard.js',
+  // The opening sting: classic and async from the top of <body>, same story.
+  './js/intro.js',
   './js/ui.js',
   './js/upgrades.js',
   './js/utils.js',
