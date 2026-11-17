@@ -1475,7 +1475,7 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
 
 /* Landscape phones: keep HUD out of the notch and the toast higher */
 @media (orientation: landscape) and (max-height: 480px) {
-  #upgrade-toast { top: 14%; }
+  #upgrade-toast { top: calc(var(--safe-t) + 64px); } /* below #act-label, not over it */
   #boss-wrap { top: calc(var(--safe-t) + 60px); width: min(60vw, 420px); }
   #act-label { top: calc(var(--safe-t) + 36px); }
 }
