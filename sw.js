@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.14.1'; // the menu plate closes its own panel; one click per mute; the fullscreen plate cannot throw; icon-180 offline; a refused close says window; the title hint keeps to its column sideways
+const VERSION = 'v1.14.2'; // a hidden tab pauses the run and silences the theme; any tap wakes the audio; no stuck keys after a blur; focus follows each screen; slots answer Enter and Space; picks say they are pressed; reduced motion stills the shake and dims the flash
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

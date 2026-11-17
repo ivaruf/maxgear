@@ -175,6 +175,7 @@ function setState(s) {
   game.state = s;
   if (s === 'playing') input.clear(); // drops drag accumulated while paused
   ui.showScreen(s === 'playing' ? null : s === 'paused' ? 'pause' : s);
+  if (s !== 'playing') ui.focusScreen(s === 'paused' ? 'pause' : s);
   if (s === 'paused') {
     // Anything that stops a live run is a pause, whoever asked for it — the
     // menu plate, Esc, actions.pause. Deciding it HERE off the state we came
@@ -475,6 +476,12 @@ document.addEventListener('arcade:lang', () => {
 });
 
 window.addEventListener('resize', () => resizeView(view));
+
+// A solo run does not carry on unseen: a hidden tab brings it back paused, on
+// the menu, exactly as P would leave it.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && game.state === 'playing') setState('paused');
+});
 
 // Debug/test hooks (used by automated Playwright tests).
 // quickStart bypasses the menus: fresh medium campaign in slot 2 (test slot).

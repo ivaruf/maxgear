@@ -545,9 +545,10 @@ function browsePower(key, force = false) {
   els.pwDblurb.textContent = def.blurb || '';
   els.pwDtier.textContent = tierNote(def.tier ?? 1);
   els.pwLvls.innerHTML = [1, 2, 3, 4, 5].map((n) =>
-    `<button type="button" data-lv="${n}" class="${n <= pwLevel ? 'on' : ''}" aria-label="${esc(tr('up.levelN', n))}"></button>`).join('');
+    `<button type="button" data-lv="${n}" class="${n <= pwLevel ? 'on' : ''}" aria-pressed="${n === pwLevel}" aria-label="${esc(tr('up.levelN', n))}"></button>`).join('');
   for (const card of els.pwGrid.querySelectorAll('[data-pw]')) {
     card.classList.toggle('browse', card.dataset.pw === pwBrowse);
+    card.setAttribute('aria-pressed', String(card.dataset.pw === pwBrowse));
   }
   stopPowerPreview();
   pwStop = startPreview(els.pwPreview, pwBrowse, pwLevel);
@@ -574,6 +575,7 @@ function paintKeepGrid() {
   for (const card of els.lcGrid.querySelectorAll('[data-keep]')) {
     card.classList.toggle('keep', lcSelection.has(card.dataset.keep));
     card.classList.toggle('browse', card.dataset.keep === lcBrowse);
+    card.setAttribute('aria-pressed', String(lcSelection.has(card.dataset.keep)));
   }
   const ready = lcSelection.size === lcNeed;
   els.btnContinue.disabled = !ready;
@@ -971,6 +973,15 @@ export const ui = {
         const card = ev.target.closest('[data-slot]');
         if (card) { audio.click(); actions.pickSlot(+card.dataset.slot); }
       });
+      // A filled slot is a div with role="button" (it holds the ✕, and a
+      // button cannot hold a button), so Enter and Space are given to it here.
+      // The ✕ is a real button and keeps its own keys.
+      els.slotList.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        if (!ev.target.matches || !ev.target.matches('div[data-slot]')) return;
+        ev.preventDefault();
+        ev.target.click();
+      });
     }
 
     // v1.5.2 opt-in update: stopPropagation so the tap doesn't bubble into the
@@ -992,6 +1003,20 @@ export const ui = {
     // canvas, so input.js' 'tap' never fires here). actions.start is guarded by
     // main.js (`state === 'title'`), so the extra bubbled click is a no-op.
     els.screens.title.addEventListener('click', actions.start);
+  },
+
+  /* Focus follows the screen onto its first button that can take it, so a
+     keyboard or screen-reader player lands inside what just opened, not on
+     the plate or the body. A microtask, because setState() paints the menu's
+     face and rebuilds the slot and KEEP lists after showScreen(). */
+  focusScreen(state) {
+    queueMicrotask(() => {
+      const screen = els && els.screens[state];
+      if (!screen || screen.classList.contains('hidden')) return;
+      const first = [...screen.querySelectorAll('button, [role="button"]')]
+        .find((b) => !b.disabled && b.getClientRects().length > 0);
+      if (first) first.focus({ preventScroll: true });
+    });
   },
 
   showScreen(state) {

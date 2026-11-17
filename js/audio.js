@@ -99,7 +99,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 // ---- graph -------------------------------------------------------------------
 function ensure() {
   if (ctx) {
-    if (ctx.state === 'suspended' && ctx.resume) { try { ctx.resume(); } catch (e) { /* ignore */ } }
+    // Not only 'suspended': iOS parks a context in 'interrupted' after a call.
+    if (ctx.state !== 'running' && ctx.resume) { try { ctx.resume().catch(() => {}); } catch (e) { /* ignore */ } }
     return ctx;
   }
   try {
@@ -242,6 +243,24 @@ let lastCharge = 0;
 let lastHit = 0;
 let lastDie = 0;
 let lastBoom = 0;
+
+// Every tap and key, for the whole session: iOS can interrupt a running context
+// mid-run (a call, the lock screen) and only a gesture may wake it, while
+// unlock() is only ever called from the menus. Capture phase, so nothing that
+// stops propagation can keep it asleep. Before the first unlock there is no
+// context, and this does nothing.
+const wake = () => {
+  if (ctx && ctx.state !== 'running' && ctx.resume && !document.hidden) {
+    try { ctx.resume().catch(() => {}); } catch (e) { /* ignore */ }
+  }
+};
+window.addEventListener('pointerdown', wake, true);
+window.addEventListener('keydown', wake, true);
+// A hidden tab goes quiet: the theme would otherwise loop on behind it.
+document.addEventListener('visibilitychange', () => {
+  if (!ctx || !ctx.suspend) return;
+  try { (document.hidden ? ctx.suspend() : ctx.resume()).catch(() => {}); } catch (e) { /* ignore */ }
+});
 
 export const audio = {
   unlock() {

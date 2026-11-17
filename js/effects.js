@@ -89,14 +89,20 @@ function spawn(kind, x, y, z, vx, vy, vz, life, size, color, drag, grav, alpha, 
   return p;
 }
 
+// Someone who has asked for less motion gets no shake, and a full-screen flash
+// at about a third. Every shake and flash in the game comes through these two.
+const reducedMotion = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+const calm = () => !!(reducedMotion && reducedMotion.matches);
+
 function doShake(mag, dur) {
+  if (calm()) return;
   if (mag >= shakeMag * (1 - shakeT / (shakeDur || 1))) {
     shakeMag = mag; shakeDur = dur; shakeT = 0;
   }
 }
 
 function doFlash(color, alpha, dur) {
-  flashColor = color; flashAlpha = alpha; flashDur = dur; flashT = 0;
+  flashColor = color; flashAlpha = calm() ? alpha * 0.3 : alpha; flashDur = dur; flashT = 0;
 }
 
 // Boss intro is a tiny scripted timeline of shakes + flashes (auto-expires).

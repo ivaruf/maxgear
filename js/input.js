@@ -52,6 +52,11 @@ export function createInput(canvas, { escape = null } = {}) {
       case 'ArrowRight': case 'KeyD': keys.right = false; break;
     }
   });
+  // A key let go while the window had no focus never sends its keyup, and the
+  // rig would steer into the wall on its own: let go of everything instead.
+  const release = () => { keys.left = keys.right = false; };
+  window.addEventListener('blur', release);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) release(); });
 
   canvas.addEventListener('pointerdown', (e) => {
     pointerId = e.pointerId;
@@ -72,6 +77,6 @@ export function createInput(canvas, { escape = null } = {}) {
     axis() { return (keys.right ? 1 : 0) - (keys.left ? 1 : 0); },
     takeDrag() { const d = dragPx; dragPx = 0; return d; },
     took(action) { return presses.delete(action); },
-    clear() { presses.clear(); dragPx = 0; },
+    clear() { presses.clear(); dragPx = 0; keys.left = keys.right = false; },
   };
 }
