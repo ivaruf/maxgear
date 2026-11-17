@@ -1005,20 +1005,6 @@ export const ui = {
     els.screens.title.addEventListener('click', actions.start);
   },
 
-  /* Focus follows the screen onto its first button that can take it, so a
-     keyboard or screen-reader player lands inside what just opened, not on
-     the plate or the body. A microtask, because setState() paints the menu's
-     face and rebuilds the slot and KEEP lists after showScreen(). */
-  focusScreen(state) {
-    queueMicrotask(() => {
-      const screen = els && els.screens[state];
-      if (!screen || screen.classList.contains('hidden')) return;
-      const first = [...screen.querySelectorAll('button, [role="button"]')]
-        .find((b) => !b.disabled && b.getClientRects().length > 0);
-      if (first) first.focus({ preventScroll: true });
-    });
-  },
-
   showScreen(state) {
     for (const [name, el] of Object.entries(els.screens)) {
       el.classList.toggle('hidden', name !== state);

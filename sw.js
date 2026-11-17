@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.14.2'; // a hidden tab pauses the run and silences the theme; any tap wakes the audio; no stuck keys after a blur; focus follows each screen; slots answer Enter and Space; picks say they are pressed; reduced motion stills the shake and dims the flash
+const VERSION = 'v1.14.3'; // the update reload waits for the title; a hidden tab pauses the run and silences the theme; any tap wakes the audio; no stuck keys after a blur; slots answer Enter and Space; picks say they are pressed; reduced motion stills the shake and dims the flash
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [

@@ -175,7 +175,6 @@ function setState(s) {
   game.state = s;
   if (s === 'playing') input.clear(); // drops drag accumulated while paused
   ui.showScreen(s === 'playing' ? null : s === 'paused' ? 'pause' : s);
-  if (s !== 'playing') ui.focusScreen(s === 'paused' ? 'pause' : s);
   if (s === 'paused') {
     // Anything that stops a live run is a pause, whoever asked for it — the
     // menu plate, Esc, actions.pause. Deciding it HERE off the state we came
@@ -455,7 +454,8 @@ ui.init(game, {
   applyUpdate: () => {
     updateRequested = true;
     if (swReg && swReg.waiting) swReg.waiting.postMessage({ type: 'SKIP_WAITING' });
-    setTimeout(() => { if (updateRequested) location.reload(); }, 3000);
+    // On the title only, as controllerchange below: never into a live run.
+    setTimeout(() => { if (updateRequested && game.state === 'title') location.reload(); }, 3000);
   },
 });
 ui.showScreen('title');
