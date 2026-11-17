@@ -280,7 +280,9 @@ function step(dt) {
    panels. Remembers where it was opened from: "title" is only the right place
    to come back to when the title is where you were. */
 function openMenu() {
-  if (game.state === 'paused') return;
+  // The plate stays visible above its own panel, so a second press closes it,
+  // exactly as RESUME, CLOSE and Escape do.
+  if (game.state === 'paused') { closeMenu(); return; }
   audio.unlock();
   menuReturn = game.state;
   setState('paused');

@@ -83,13 +83,17 @@ if (button && request && exit) {
   paint();
 
   button.addEventListener('click', () => {
-    const result = isFull() ? exit.call(document) : request.call(root);
     // Either call returns a promise that is allowed to reject: a permissions
     // policy refusing it, or a player backing out of the browser's own prompt.
     // What actually happened is repainted from the change event below, so this
     // catch exists only to keep a refusal from surfacing as an unhandled
     // rejection in the console.
-    if (result && typeof result.catch === 'function') result.catch(() => {});
+    try {
+      const result = isFull() ? exit.call(document) : request.call(root);
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } catch {
+      // An old engine that throws instead: nothing changed, nothing to say.
+    }
   });
 
   // The plate is not the only way out of fullscreen — Escape and the browser's

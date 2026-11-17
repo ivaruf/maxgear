@@ -66,7 +66,7 @@ const STRINGS = {
     // front of these words rather than a glyph of MAXGEAR's own.
     'exit.arcade': 'Tilbake til arkaden',
     'exit.app': 'Lukk',
-    'exit.refused': 'Lukk fanen selv',
+    'exit.refused': 'Lukk vinduet selv',
 
     // ---- corner ----------------------------------------------------------
     'corner.menu': 'Meny',
@@ -260,7 +260,7 @@ const STRINGS = {
     'update.busy': '⚙  UPDATING…',
     'exit.arcade': 'Back to arcade',
     'exit.app': 'Close',
-    'exit.refused': 'Close this tab yourself',
+    'exit.refused': 'Close the window yourself',
 
     'corner.menu': 'Menu',
     'corner.menuTitle': 'Menu (Esc)',

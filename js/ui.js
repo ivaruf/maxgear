@@ -106,7 +106,7 @@ let lastLc = null;       // { game, info } for showLevelClear()
 let lastEnd = null;      // { game, victory, extra } for showEnd()
 let lastInRun = true;    // paintMenu() argument
 let updateState = null;  // null | { version } | 'busy'
-let exitRefused = false; // the browser would not close this tab
+let exitRefused = false; // the browser would not close this window
 let exitLabel = null;    // () => the way-out words for this window
 
 /* THE WAY OUT'S GLYPH, the same drawing in every game in the hub, to the path
@@ -742,7 +742,9 @@ export const ui = {
     tap($('btn-again'), actions.restart);
     tap($('btn-resume'), actions.resume);
     tap($('btn-quit'), actions.quit);
-    tap(els.muteBtn, actions.mute);
+    // Not via `tap`: the mute plate sits in #corner-tools, whose own listener
+    // already answers with the click (see the menu plate below).
+    if (els.muteBtn) els.muteBtn.addEventListener('click', actions.mute);
 
     /* Leaving the GAME, as opposed to quitting to the title.
      *

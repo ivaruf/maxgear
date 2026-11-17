@@ -10,7 +10,7 @@
 //
 // All paths are RELATIVE so the app works from a GitHub Pages subpath.
 
-const VERSION = 'v1.14.0'; // An opening sting: brass gears mesh and spin up, steam bursts, and MAXGEAR slams down and flies to its place on the title
+const VERSION = 'v1.14.1'; // the menu plate closes its own panel; one click per mute; the fullscreen plate cannot throw; icon-180 offline; a refused close says window; the title hint keeps to its column sideways
 const CACHE = `maxgear-${VERSION}`;
 
 const ASSETS = [
@@ -53,6 +53,7 @@ const ASSETS = [
   './js/ui.js',
   './js/upgrades.js',
   './js/utils.js',
+  './icons/icon-180.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png',

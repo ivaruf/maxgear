@@ -1532,6 +1532,8 @@ button { font-family: inherit; touch-action: manipulation; -webkit-tap-highlight
      grid every button would shrink to its own words and centre itself, which
      is the three-widths stack v1.8.1 got rid of, come back sideways. */
   #btn-start, #btn-powers, #btn-update, #btn-exit-title { width: min(100%, 330px); }
+  /* The hint wraps inside that same column: in Norwegian it ran wider. */
+  #screen-title .hint { max-width: min(100%, 330px); }
   /* THE CORNER PLATES STAY IN THE CORNER SIDEWAYS TOO. They used to become a
      grid cell of their own here, which fitted the layout and broke the rule:
      the pair must be in the same place on every screen and in every
